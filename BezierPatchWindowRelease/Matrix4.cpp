@@ -66,8 +66,7 @@ Homogeneous4 Matrix4::operator *(const Homogeneous4 &vector) const
 
     // TODO: loop adding products
     for (int i = 0; i < 4; i++) {
-        productVector[i] = (coordinates[i][0] * vector.x) + (coordinates[i][1] * vector.y) + (coordinates[i][2] * vector.z) + (coordinates[i][3] + vector.w);
-        //std::cout << "productVector[" << i << "] = " << productVector[i] << ". " << coordinates[i][0] << "*" << vector.x << " + " << coordinates[i][1] << "*" << vector.y << " + " << coordinates[i][2] << "*" << vector.z << std::endl;
+        productVector[i] = (coordinates[i][0] * vector.x) + (coordinates[i][1] * vector.y) + (coordinates[i][2] * vector.z) + (coordinates[i][3] * vector.w);
     }
 
     // return the result

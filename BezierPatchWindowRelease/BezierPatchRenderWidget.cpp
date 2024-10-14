@@ -105,85 +105,59 @@ void BezierPatchRenderWidget::paintGL()
     Matrix4 identity_matrix;
     identity_matrix.SetIdentity();
 
-    int w = frameBuffer.width;
-    int h = frameBuffer.height;
+    float w = (float) frameBuffer.width;
+    float h = (float) frameBuffer.height;
+    float aspectRatio = w / h;
 
-    //std::cout << w << " " << h << std::endl;
-
-    float aspectRatio = (float)w / (float)h;
-
-    float left, right, bottom, top, near = 0.01f, far = 200.0f;
+    float near = 0.01f;
+    float far = 200.0f;
 
     // Projection matrix
     projectionMatrix.SetIdentity();
 
-    if (renderParameters->orthoProjection) { // Orthographic projection
-        left = -10.0f / renderParameters->zTranslate;
-        right = 10.0f / renderParameters->zTranslate;
-        bottom = -aspectRatio * (10.0f / renderParameters->zTranslate);
-        top = aspectRatio * (10.0f / renderParameters->zTranslate);
+    // View matrix
+    viewMatrix.SetIdentity();
 
-        projectionMatrix[0][0] = 2 / (right - left);
-        projectionMatrix[1][1] = 2 / (top - bottom);
-        projectionMatrix[2][2] = -2 / (far - near);
+    if (renderParameters->orthoProjection) {
+        viewMatrix.SetTranslation(Vector3(renderParameters->xTranslate, renderParameters->yTranslate, renderParameters->zTranslate-1));
+        viewMatrix = viewMatrix * renderParameters->rotationMatrix;
+
+        float left, right, bottom, top;
+
+        if (aspectRatio > 1.0f) {
+            left = -aspectRatio * (10.0f / renderParameters->zTranslate);
+            right = aspectRatio * (10.0f / renderParameters->zTranslate);
+            bottom = -10.0f / renderParameters->zTranslate;
+            top = 10.0f / renderParameters->zTranslate;
+        } else {
+            left = -10.0f / renderParameters->zTranslate;
+            right = 10.0f / renderParameters->zTranslate;
+            bottom = -aspectRatio * (10.0f / renderParameters->zTranslate);
+            top = aspectRatio * (10.0f / renderParameters->zTranslate);
+        }
+
+        projectionMatrix[0][0] = 2.0f / (right - left);
+        projectionMatrix[1][1] = 2.0f / (top - bottom);
+        projectionMatrix[2][2] = -2.0f / (far - near);
         projectionMatrix[0][3] = -(right + left) / (right - left);
         projectionMatrix[1][3] = -(top + bottom) / (top - bottom);
-        projectionMatrix[2][3] = -(far + near) / (far - near);
-    } else { // Perspective projection
-        left = -0.01f;
-        right = 0.01f;
-        bottom = -aspectRatio * 0.01f;
-        top = aspectRatio * 0.01f;
+        projectionMatrix[2][3] = -(far * near) / (far - near);
+    } else {
+        viewMatrix.SetTranslation(Vector3(-renderParameters->xTranslate, -renderParameters->yTranslate, 9.0f - renderParameters->zTranslate));
+        viewMatrix = viewMatrix * renderParameters->rotationMatrix;
 
-        projectionMatrix[0][0] = 2 * near / (right - left);
-        projectionMatrix[1][1] = 2 * near / (top - bottom);
-        projectionMatrix[2][2] = -(far + near) / (far - near);
-        projectionMatrix[3][3] = 0;
-        projectionMatrix[0][2] = (right + left) / (right - left);
-        projectionMatrix[1][2] = (top + bottom) / (top - bottom);
-        projectionMatrix[3][2] = -1;
-        projectionMatrix[2][3] = -(2 * far * near) / (far - near);
+        float tanHalfFov = std::tan((90.0f * 3.14159265359f / 180.0f) / 2.0f);
+
+        projectionMatrix[0][0] = 1.0f / (aspectRatio * tanHalfFov);
+        projectionMatrix[1][1] = 1.0f / tanHalfFov;
+        projectionMatrix[2][2] = -((far + near) / (far - near));
+        projectionMatrix[3][3] = 0.0f;
+        projectionMatrix[2][3] = -2.0f * ((far + near) / (far - near));
+        projectionMatrix[3][2] = -1.0f;
     }
 
-    // View Matrix (look at)
-    Vector3 eye(0.0f, 0.0f, 8.0f);
-    Vector3 origin(0.0f, 0.0f, 0.0f);
-    Vector3 upT(0.0f, 1.0f, 0.0f);
-
-    Vector3 forward = (origin - eye).unit();
-    Vector3 rightVec = (forward.cross(upT)).unit();
-    Vector3 up = rightVec.cross(forward);
-
-    Matrix4 mMatrix;
-    mMatrix.SetIdentity();
-    mMatrix[0][0] = rightVec.x;
-    mMatrix[0][1] = rightVec.y;
-    mMatrix[0][2] = rightVec.z;
-    mMatrix[1][0] = up.x;
-    mMatrix[1][1] = up.y;
-    mMatrix[1][2] = up.z;
-    mMatrix[2][0] = -forward.x;
-    mMatrix[2][1] = -forward.y;
-    mMatrix[2][2] = -forward.z;
-
-    Matrix4 eyeTranslation;
-    eyeTranslation.SetIdentity();
-    eyeTranslation[0][3] = -eye.x;
-    eyeTranslation[1][3] = -eye.y;
-    eyeTranslation[2][3] = -eye.z;
-
-    viewMatrix = mMatrix * eyeTranslation;
-    
-    Matrix4 rotationMatrix = renderParameters->rotationMatrix;
-
-    Matrix4 translationMatrix;
-    translationMatrix.SetIdentity();
-    translationMatrix.SetTranslation(Vector3(renderParameters->xTranslate, renderParameters->yTranslate, renderParameters->zTranslate));
-
-    modelMatrix.SetIdentity();
-    modelMatrix = translationMatrix * rotationMatrix;
-
-    renderParameters->modelviewMatrix = projectionMatrix * viewMatrix * modelMatrix;
+    mvpMatrix.SetIdentity();
+    mvpMatrix = projectionMatrix * viewMatrix;
 
     if(renderParameters->verticesEnabled)
     {// UI control for showing vertices
@@ -202,47 +176,21 @@ void BezierPatchRenderWidget::paintGL()
 
         // Planes are axis aligned grids made up of lines
 
+        for (int i = -5; i <= 5; i += 2) {
+            drawLine(Point3(-5, 0, i), Point3(5, 0, i), RGBAValue(255.0f, 0.0f, 0.0f, 255.0f)); // x plane horizontal
+            drawLine(Point3(i, 0, -5), Point3(i, 0, 5), RGBAValue(255.0f, 0.0f, 0.0f, 255.0f)); // x plane vertical
+            drawLine(Point3(0, i, -5), Point3(0, i, 5), RGBAValue(0.0f, 0.0f, 255.0f, 255.0f)); // z plane horizontal
+            drawLine(Point3(0, -5, i), Point3(0, 5, i), RGBAValue(0.0f, 0.0f, 255.0f, 255.0f)); // z plane vertical
+        }
+
+        for (int i = -5; i <= 5; i++) {
+            drawLine(Point3(-5, i, 0), Point3(5, i, 0), RGBAValue(0.0f, 255.0f, 0.0f, 255.0f)); // y plane horizontal
+            drawLine(Point3(i, -5, 0), Point3(i, 5, 0), RGBAValue(0.0f, 255.0f, 0.0f, 255.0f)); // y plane vertical
+        }
+
         // Draw the vertical x axis plane (in purple)
-        // Horizontal lines (-x to +x)
-        for (int i = -5; i <= 5; i +=2 ) {
-            Point3 start(-5, 0, i);
-            Point3 end(5, 0, i);
-            drawLine(start, end, RGBAValue(255.0f, 0.0f, 0.0f, 255.0f));
-        }
-        // Vertical lines (-z to +z)
-        for (int i = -5; i <= 5; i +=2 ) {
-            Point3 start(i, 0, -5);
-            Point3 end(i, 0, 5);
-            drawLine(start, end, RGBAValue(255.0f, 0.0f, 0.0f, 255.0f));
-        }
-
         // Draw the vertical y axis plane (in blue)
-        // Horizontal lines (-x to +x)
-        for (int i = -5; i <= 5; i++) {
-            Point3 start(-5, i, 0);
-            Point3 end(5, i, 0);
-            drawLine(start, end, RGBAValue(0.0f, 255.0f, 0.0f, 255.0f));
-        }
-        // Vertical lines (-y to +y)
-        for (int i = -5; i <= 5; i++) {
-            Point3 start(i, -5, 0);
-            Point3 end(i, 5, 0);
-            drawLine(start, end, RGBAValue(0.0f, 255.0f, 0.0f, 255.0f));
-        }
-
         // Draw the flat plane (in brown)
-        // Horizontal lines (-z to +z)
-        for (int i = -5; i <= 5; i +=2 ) {
-            Point3 start(0, i, -5);
-            Point3 end(0, i, 5);
-            drawLine(start, end, RGBAValue(0.0f, 0.0f, 255.0f, 255.0f));
-        }
-        // Vertical lines (-y to +y)
-        for (int i = -5; i <= 5; i +=2 ) {
-            Point3 start(0, -5, i);
-            Point3 end(0, 5, i);
-            drawLine(start, end, RGBAValue(0.0f, 0.0f, 255.0f, 255.0f));
-        }
 
         // Refer to RenderWidget.cpp for the precise colours.
 
@@ -274,40 +222,18 @@ void BezierPatchRenderWidget::paintGL()
 
 void BezierPatchRenderWidget::drawLine(Point3 start, Point3 end, RGBAValue colour) {
     Vector3 difference = end - start;
-
+    
     for (float t = 0.0f; t < 1.0f; t += 0.001f) {
-        Point3 pointOnLine = start + difference * t;
-
-        Homogeneous4 ocs(pointOnLine);
-        // std::cout << "pointH: " << pointH << std::endl;
-
-        Homogeneous4 wcs = modelMatrix * ocs; // object to world
-
-        Homogeneous4 vcs = viewMatrix * wcs; // world to view
-
-        Homogeneous4 ccs = projectionMatrix * vcs; // world to clip
-        //std::cout << "ccs: " << ccs << std::endl;
-
-        Homogeneous4 ndcs2(ccs.Point()); // clip to image (perspective divide)
-        //std::cout << "ndcs2: " << ndcs2 << std::endl;
-
-        // Point3 screenCoord(ndcs.x * frameBuffer.width, ndcs.y * frameBuffer.height, ndcs.z); // image to screen
-
-        Homogeneous4 pointH(pointOnLine);
-
-        Homogeneous4 transformedPoint = renderParameters->modelviewMatrix * pointH;
-        //std::cout << "transformedPoint: " << transformedPoint << std::endl;
+        Homogeneous4 pointOnLine(Point3(start + difference * t));
+        Homogeneous4 transformedPoint = mvpMatrix * pointOnLine;
         Homogeneous4 ndcs(transformedPoint.Point());
-        //std::cout << "ndcs: " << ndcs << std::endl;
-        //exit(1);
 
-        ndcs.x = (ndcs.x + 1) / 2;
-        ndcs.y = (ndcs.y + 1) / 2;
+        ndcs.x = (ndcs.x + 1) / 2 * frameBuffer.width;
+        ndcs.y = (ndcs.y + 1) / 2 * frameBuffer.height;
 
-        Point3 screenCoord(ndcs.x * frameBuffer.width, ndcs.y * frameBuffer.height, ndcs.z);
-        // std::cout << "screenCoord: " << screenCoord << std::endl;
+        Point3 screenCoord(ndcs.x, ndcs.y, ndcs.z);
 
-        if (screenCoord.x > 0 && screenCoord.x < frameBuffer.width - 1 && screenCoord.y > 0 && screenCoord.y < frameBuffer.height - 1) {
+        if (screenCoord.x >= 0 && screenCoord.x <= frameBuffer.width - 1 && screenCoord.y >= 0 && screenCoord.y <= frameBuffer.height - 1) {
             frameBuffer[(int)screenCoord.y][(int)screenCoord.x] = colour;
         }
     }

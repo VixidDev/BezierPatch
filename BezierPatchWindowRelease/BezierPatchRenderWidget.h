@@ -50,10 +50,8 @@ class BezierPatchRenderWidget : public QOpenGLWidget
 	Matrix4 projectionMatrix;
 	// View matrix
 	Matrix4 viewMatrix;
-	// Model matrix
-	Matrix4 modelMatrix;
-	// Translation matrix
-	Matrix4 translationMatrix;
+
+	Matrix4 mvpMatrix;
 
 	public:
 	// constructor
