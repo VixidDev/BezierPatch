@@ -121,12 +121,10 @@ void BezierPatchRenderWidget::paintGL()
     // View matrix
     viewMatrix.SetIdentity();
 
-    // Model matrix
-    modelMatrix.SetIdentity();
-    modelMatrix.SetTranslation(Vector3(renderParameters->xTranslate, renderParameters->yTranslate, renderParameters->zTranslate-1));
-    modelMatrix = modelMatrix * renderParameters->rotationMatrix;
-
     if (renderParameters->orthoProjection) {
+        viewMatrix.SetTranslation(Vector3(renderParameters->xTranslate, renderParameters->yTranslate, renderParameters->zTranslate-1));
+        viewMatrix = viewMatrix * renderParameters->rotationMatrix;
+
         if (aspectRatio > 1.0f) {
             left = -aspectRatio * (10.0f / renderParameters->zTranslate);
             right = aspectRatio * (10.0f / renderParameters->zTranslate);
@@ -147,6 +145,9 @@ void BezierPatchRenderWidget::paintGL()
         projectionMatrix[1][3] = -(top + bottom) / (top - bottom);
         projectionMatrix[2][3] = -(far * near) / (far - near);
     } else {
+        viewMatrix.SetTranslation(Vector3(renderParameters->xTranslate, renderParameters->yTranslate, -(9.0f - renderParameters->zTranslate)));
+        viewMatrix = viewMatrix * renderParameters->rotationMatrix;
+
         if (aspectRatio > 1.0f) {
             left = -aspectRatio * 0.01f;
             right = aspectRatio * 0.01f;
@@ -170,37 +171,9 @@ void BezierPatchRenderWidget::paintGL()
         projectionMatrix[2][3] = -(2.0f * far * near) / (far - near);
     }
 
-    // gluLookAt
-    Vector3 eye(0.0f, 0.0f, 8.0f);
-    Vector3 origin(0.0f, 0.0f, 0.0f);
-    Vector3 up(0.0f, 1.0f, 0.0f);
-
-    Vector3 forward = Vector3(origin - eye).unit();
-    Vector3 s = forward.cross(up);
-
-    Matrix4 mMatrix;
-    mMatrix.SetIdentity();
-    mMatrix[0][0] = s.x;
-    mMatrix[0][1] = s.y;
-    mMatrix[0][2] = s.z;
-    mMatrix[1][0] = up.z;
-    mMatrix[1][1] = up.y;
-    mMatrix[1][2] = up.z;
-    mMatrix[2][0] = -forward.x;
-    mMatrix[2][1] = -forward.y;
-    mMatrix[2][2] = -forward.z;
-
-    Matrix4 eyeTranslation;
-    eyeTranslation.SetIdentity();
-    eyeTranslation[0][3] = -eye.x;
-    eyeTranslation[1][3] = -eye.y;
-    eyeTranslation[2][3] = -eye.z;
-
-    viewMatrix = eyeTranslation * mMatrix;
-
     // Model-view-projection matrix
     mvpMatrix.SetIdentity();
-    mvpMatrix = projectionMatrix * viewMatrix * modelMatrix;
+    mvpMatrix = projectionMatrix * viewMatrix;
 
     if(renderParameters->verticesEnabled)
     {// UI control for showing vertices
@@ -303,17 +276,7 @@ void BezierPatchRenderWidget::drawLine(Point3 start, Point3 end, RGBAValue colou
     
     for (float t = 0.0f; t < 1.0f; t += 0.001f) {
         Homogeneous4 pointOnLine(Point3(start + difference * t));
-        Homogeneous4 transformedPoint = mvpMatrix * pointOnLine;
-        Homogeneous4 ndcs(transformedPoint.Point());
-
-        Point3 screenCoord;
-        screenCoord.x = (ndcs.x + 1) / 2 * frameBuffer.width;
-        screenCoord.y = (ndcs.y + 1) / 2 * frameBuffer.height;
-        screenCoord.z = ndcs.z;
-
-        if (screenCoord.x >= 0 && screenCoord.x <= frameBuffer.width - 1 && screenCoord.y >= 0 && screenCoord.y <= frameBuffer.height - 1) {
-            frameBuffer[(int)screenCoord.y][(int)screenCoord.x] = colour;
-        }
+        setPixel(pointOnLine, mvpMatrix, colour);
     }
 }
 
@@ -321,7 +284,7 @@ void BezierPatchRenderWidget::drawPoint(Point3 point, RGBAValue colour) {
     Matrix4 translationMatrix = Matrix4();
     translationMatrix.SetTranslation(Vector3(point.x, point.y, point.z));
     
-    Matrix4 pointMatrix = projectionMatrix * viewMatrix * (modelMatrix * translationMatrix);
+    Matrix4 pointMatrix = projectionMatrix * viewMatrix * translationMatrix;
     
     float radius = 0.1f;
 
@@ -331,18 +294,33 @@ void BezierPatchRenderWidget::drawPoint(Point3 point, RGBAValue colour) {
                 radius * std::cos(phi) * std::cos(theta), 
                 radius * std::cos(phi) * std::sin(theta),
                 radius * std::sin(phi)));
-            Homogeneous4 transformedPoint = pointMatrix * point;
-            Homogeneous4 ndcs(transformedPoint.Point());
-
-            Point3 screenCoord;
-            screenCoord.x = (ndcs.x + 1) / 2 * frameBuffer.width;
-            screenCoord.y = (ndcs.y + 1) / 2 * frameBuffer.height;
-            screenCoord.z = ndcs.z;
             
-            if (screenCoord.x >= 0 && screenCoord.x <= frameBuffer.width - 1 && screenCoord.y >= 0 && screenCoord.y <= frameBuffer.height - 1) {
-                frameBuffer[(int)screenCoord.y][(int)screenCoord.x] = colour;
-            }
+            setPixel(point, pointMatrix, colour);
         }
+    }
+}
+
+void BezierPatchRenderWidget::setPixel(Homogeneous4 point, Matrix4 transformationMatrix, RGBAValue colour) {
+    Homogeneous4 transformedPoint = transformationMatrix * point;
+
+    // Clipping
+    if (-transformedPoint.w > transformedPoint.x || transformedPoint.x > transformedPoint.w ||
+        -transformedPoint.w > transformedPoint.y || transformedPoint.y > transformedPoint.w ||
+        -transformedPoint.w > transformedPoint.z || transformedPoint.z > transformedPoint.w ||
+        transformedPoint.w < 0.0f)
+        return;
+
+    // Perspective divide
+    Homogeneous4 ndcs(transformedPoint.Point());
+
+    // Viewport transformation
+    int screenCoordx = (ndcs.x + 1) / 2 * frameBuffer.width;
+    int screenCoordy = (ndcs.y + 1) / 2 * frameBuffer.height;
+    int screenCoordz = ndcs.z;
+            
+    // Bounds check
+    if (screenCoordx >= 0 && screenCoordx < frameBuffer.width && screenCoordy >= 0 && screenCoordy < frameBuffer.height) {
+        frameBuffer[screenCoordy][screenCoordx] = colour;
     }
 }
 
