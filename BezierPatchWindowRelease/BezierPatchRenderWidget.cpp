@@ -139,6 +139,7 @@ void BezierPatchRenderWidget::paintGL()
             top = aspectRatio * (10.0f / renderParameters->zTranslate);
         }
 
+        // glOrtho
         projectionMatrix[0][0] = 2.0f / (right - left);
         projectionMatrix[1][1] = 2.0f / (top - bottom);
         projectionMatrix[2][2] = -2.0f / (far - near);
@@ -203,29 +204,6 @@ void BezierPatchRenderWidget::paintGL()
 
     if(renderParameters->verticesEnabled)
     {// UI control for showing vertices
-        Matrix4 tM = Matrix4();
-        tM.SetTranslation(Vector3(-3.0f, 3.0f, 4.0f));
-        Matrix4 pM = projectionMatrix * viewMatrix * (modelMatrix * tM);
-        for (float phi = 0.0f; phi < 2.0f * PI; phi += PI / 30.0f) {
-                for (float theta = 0.0f; theta < 2.0f * PI; theta += PI / 30.0f) {
-                    Homogeneous4 point(Point3(
-                        0.1f * std::cos(phi) * std::cos(theta), 
-                        0.1f * std::cos(phi) * std::sin(theta),
-                        0.1f * std::sin(phi)));
-                    Homogeneous4 transformedPoint = pM * point;
-                    Homogeneous4 ndcs(transformedPoint.Point());
-
-                    ndcs.x = (ndcs.x + 1) / 2 * frameBuffer.width;
-                    ndcs.y = (ndcs.y + 1) / 2 * frameBuffer.height;
-                        
-                    Point3 screenCoord(ndcs.x, ndcs.y, ndcs.z);
-
-                    if (screenCoord.x >= 0 && screenCoord.x <= frameBuffer.width - 1 && screenCoord.y >= 0 && screenCoord.y <= frameBuffer.height - 1) {
-                        frameBuffer[(int)screenCoord.y][(int)screenCoord.x] = RGBAValue(0.0f, 255.0f, 0.0f, 255.0f);
-                    }
-                }
-            }
-
         for(int i = 0 ; i < (*patchControlPoints).vertices.size(); i++)
         {
             // draw each vertex as a point
@@ -233,7 +211,6 @@ void BezierPatchRenderWidget::paintGL()
             //  ... keep the others in white)
 
             // consider ways to make the rendered points bigger than just 1x1 pixel on the screen
-
             RGBAValue colour;
             if (i == renderParameters->activeVertex) {
                 colour = RGBAValue(255.0f, 0.0f, 0.0f, 255.0f);
@@ -241,35 +218,11 @@ void BezierPatchRenderWidget::paintGL()
                 colour = RGBAValue(255.0f * 0.75, 255.0f * 0.75, 255.0f * 0.75, 255.0f);
             }
 
-            Matrix4 translationMatrix = Matrix4();
-            translationMatrix.SetTranslation(Vector3(
+            drawPoint(Point3(
                 (*patchControlPoints).vertices[(i/4)*4+(i%4)][0],
                 (*patchControlPoints).vertices[(i/4)*4+(i%4)][1],
-                (*patchControlPoints).vertices[(i/4)*4+(i%4)][2]));
-            
-            Matrix4 pointMatrix = projectionMatrix * viewMatrix * (modelMatrix * translationMatrix);
-
-            float radius = 0.1f;
-
-            for (float phi = 0.0f; phi < 2.0f * PI; phi += PI / 30.0f) {
-                for (float theta = 0.0f; theta < 2.0f * PI; theta += PI / 30.0f) {
-                    Homogeneous4 point(Point3(
-                        radius * std::cos(phi) * std::cos(theta), 
-                        radius * std::cos(phi) * std::sin(theta),
-                        radius * std::sin(phi)));
-                    Homogeneous4 transformedPoint = pointMatrix * point;
-                    Homogeneous4 ndcs(transformedPoint.Point());
-
-                    ndcs.x = (ndcs.x + 1) / 2 * frameBuffer.width;
-                    ndcs.y = (ndcs.y + 1) / 2 * frameBuffer.height;
-                        
-                    Point3 screenCoord(ndcs.x, ndcs.y, ndcs.z);
-
-                    if (screenCoord.x >= 0 && screenCoord.x <= frameBuffer.width - 1 && screenCoord.y >= 0 && screenCoord.y <= frameBuffer.height - 1) {
-                        frameBuffer[(int)screenCoord.y][(int)screenCoord.x] = colour;
-                    }
-                }
-            }
+                (*patchControlPoints).vertices[(i/4)*4+(i%4)][2]),
+                colour);
         }
     }// UI control for showing vertices
 
@@ -353,10 +306,10 @@ void BezierPatchRenderWidget::drawLine(Point3 start, Point3 end, RGBAValue colou
         Homogeneous4 transformedPoint = mvpMatrix * pointOnLine;
         Homogeneous4 ndcs(transformedPoint.Point());
 
-        ndcs.x = (ndcs.x + 1) / 2 * frameBuffer.width;
-        ndcs.y = (ndcs.y + 1) / 2 * frameBuffer.height;
-
-        Point3 screenCoord(ndcs.x, ndcs.y, ndcs.z);
+        Point3 screenCoord;
+        screenCoord.x = (ndcs.x + 1) / 2 * frameBuffer.width;
+        screenCoord.y = (ndcs.y + 1) / 2 * frameBuffer.height;
+        screenCoord.z = ndcs.z;
 
         if (screenCoord.x >= 0 && screenCoord.x <= frameBuffer.width - 1 && screenCoord.y >= 0 && screenCoord.y <= frameBuffer.height - 1) {
             frameBuffer[(int)screenCoord.y][(int)screenCoord.x] = colour;
@@ -364,8 +317,33 @@ void BezierPatchRenderWidget::drawLine(Point3 start, Point3 end, RGBAValue colou
     }
 }
 
-void BezierPatchRenderWidget::drawPoint(Point3 point) {
-    return;
+void BezierPatchRenderWidget::drawPoint(Point3 point, RGBAValue colour) {
+    Matrix4 translationMatrix = Matrix4();
+    translationMatrix.SetTranslation(Vector3(point.x, point.y, point.z));
+    
+    Matrix4 pointMatrix = projectionMatrix * viewMatrix * (modelMatrix * translationMatrix);
+    
+    float radius = 0.1f;
+
+    for (float phi = 0.0f; phi < 2.0f * PI; phi += PI / 30.0f) {
+        for (float theta = 0.0f; theta < 2.0f * PI; theta += PI / 30.0f) {
+            Homogeneous4 point(Point3(
+                radius * std::cos(phi) * std::cos(theta), 
+                radius * std::cos(phi) * std::sin(theta),
+                radius * std::sin(phi)));
+            Homogeneous4 transformedPoint = pointMatrix * point;
+            Homogeneous4 ndcs(transformedPoint.Point());
+
+            Point3 screenCoord;
+            screenCoord.x = (ndcs.x + 1) / 2 * frameBuffer.width;
+            screenCoord.y = (ndcs.y + 1) / 2 * frameBuffer.height;
+            screenCoord.z = ndcs.z;
+            
+            if (screenCoord.x >= 0 && screenCoord.x <= frameBuffer.width - 1 && screenCoord.y >= 0 && screenCoord.y <= frameBuffer.height - 1) {
+                frameBuffer[(int)screenCoord.y][(int)screenCoord.x] = colour;
+            }
+        }
+    }
 }
 
 // mouse-handling

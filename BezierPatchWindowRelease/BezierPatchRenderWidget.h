@@ -71,7 +71,7 @@ class BezierPatchRenderWidget : public QOpenGLWidget
     ~BezierPatchRenderWidget();
 
 	void drawLine(Point3 start, Point3 end, RGBAValue colour);
-	void drawPoint(Point3 point);
+	void drawPoint(Point3 point, RGBAValue colour);
 			
 	protected:
 	// called when OpenGL context is set up
