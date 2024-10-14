@@ -121,10 +121,12 @@ void BezierPatchRenderWidget::paintGL()
     // View matrix
     viewMatrix.SetIdentity();
 
-    if (renderParameters->orthoProjection) {
-        viewMatrix.SetTranslation(Vector3(renderParameters->xTranslate, renderParameters->yTranslate, renderParameters->zTranslate-1));
-        viewMatrix = viewMatrix * renderParameters->rotationMatrix;
+    // Model matrix
+    modelMatrix.SetIdentity();
+    modelMatrix.SetTranslation(Vector3(renderParameters->xTranslate, renderParameters->yTranslate, renderParameters->zTranslate-1));
+    modelMatrix = modelMatrix * renderParameters->rotationMatrix;
 
+    if (renderParameters->orthoProjection) {
         if (aspectRatio > 1.0f) {
             left = -aspectRatio * (10.0f / renderParameters->zTranslate);
             right = aspectRatio * (10.0f / renderParameters->zTranslate);
@@ -144,9 +146,6 @@ void BezierPatchRenderWidget::paintGL()
         projectionMatrix[1][3] = -(top + bottom) / (top - bottom);
         projectionMatrix[2][3] = -(far * near) / (far - near);
     } else {
-        viewMatrix.SetTranslation(Vector3(-renderParameters->xTranslate, -renderParameters->yTranslate, 9.0f - renderParameters->zTranslate));
-        viewMatrix = viewMatrix * renderParameters->rotationMatrix;
-
         if (aspectRatio > 1.0f) {
             left = -aspectRatio * 0.01f;
             right = aspectRatio * 0.01f;
@@ -168,37 +167,45 @@ void BezierPatchRenderWidget::paintGL()
         projectionMatrix[1][2] = (top + bottom) / (top - bottom);
         projectionMatrix[3][2] = -1.0f;
         projectionMatrix[2][3] = -(2.0f * far * near) / (far - near);
-
-        // if (renderParameters->bezierEnabled) {
-        //     projectionMatrix.SetIdentity();
-        //     float tanHalfFov = std::tan((90.0f * PI / 180.0f) / 2.0f);
-        //     // gluPerspective
-        //     projectionMatrix[0][0] = 1.0f / (aspectRatio * tanHalfFov);
-        //     projectionMatrix[1][1] = 1.0f / tanHalfFov;
-        //     projectionMatrix[2][2] = -((far + near) / (far - near));
-        //     projectionMatrix[3][3] = 0.0f;
-        //     projectionMatrix[2][3] = -2.0f * ((far * near) / (far - near));
-        //     projectionMatrix[3][2] = -1.0f;
-        // }
-
-        // if (true) {
-        //     projectionMatrix[0][0] = 1.0f / (aspectRatio * tanHalfFov);
-        //     projectionMatrix[1][1] = 1.0f / tanHalfFov;
-        //     projectionMatrix[2][2] = ((far + near) / (near - far));
-        //     projectionMatrix[3][3] = 0.0f;
-        //     projectionMatrix[2][3] = 2.0f * ((far * near) / (far - near));
-        //     projectionMatrix[3][2] = -1.0f;
-        // }
     }
 
+    // gluLookAt
+    Vector3 eye(0.0f, 0.0f, 8.0f);
+    Vector3 origin(0.0f, 0.0f, 0.0f);
+    Vector3 up(0.0f, 1.0f, 0.0f);
+
+    Vector3 forward = Vector3(origin - eye).unit();
+    Vector3 s = forward.cross(up);
+
+    Matrix4 mMatrix;
+    mMatrix.SetIdentity();
+    mMatrix[0][0] = s.x;
+    mMatrix[0][1] = s.y;
+    mMatrix[0][2] = s.z;
+    mMatrix[1][0] = up.z;
+    mMatrix[1][1] = up.y;
+    mMatrix[1][2] = up.z;
+    mMatrix[2][0] = -forward.x;
+    mMatrix[2][1] = -forward.y;
+    mMatrix[2][2] = -forward.z;
+
+    Matrix4 eyeTranslation;
+    eyeTranslation.SetIdentity();
+    eyeTranslation[0][3] = -eye.x;
+    eyeTranslation[1][3] = -eye.y;
+    eyeTranslation[2][3] = -eye.z;
+
+    viewMatrix = eyeTranslation * mMatrix;
+
+    // Model-view-projection matrix
     mvpMatrix.SetIdentity();
-    mvpMatrix = projectionMatrix * viewMatrix;
+    mvpMatrix = projectionMatrix * viewMatrix * modelMatrix;
 
     if(renderParameters->verticesEnabled)
     {// UI control for showing vertices
         Matrix4 tM = Matrix4();
         tM.SetTranslation(Vector3(-3.0f, 3.0f, 4.0f));
-        Matrix4 pM = projectionMatrix * (viewMatrix * tM);
+        Matrix4 pM = projectionMatrix * viewMatrix * (modelMatrix * tM);
         for (float phi = 0.0f; phi < 2.0f * PI; phi += PI / 30.0f) {
                 for (float theta = 0.0f; theta < 2.0f * PI; theta += PI / 30.0f) {
                     Homogeneous4 point(Point3(
@@ -240,7 +247,7 @@ void BezierPatchRenderWidget::paintGL()
                 (*patchControlPoints).vertices[(i/4)*4+(i%4)][1],
                 (*patchControlPoints).vertices[(i/4)*4+(i%4)][2]));
             
-            Matrix4 pointMatrix = projectionMatrix * (viewMatrix * translationMatrix);
+            Matrix4 pointMatrix = projectionMatrix * viewMatrix * (modelMatrix * translationMatrix);
 
             float radius = 0.1f;
 
@@ -319,7 +326,6 @@ void BezierPatchRenderWidget::paintGL()
             }
         }
     }// UI control for showing the Bezier control net
-
 
     if(renderParameters->bezierEnabled)
     {// UI control for showing the Bezier curve
