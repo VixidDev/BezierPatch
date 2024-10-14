@@ -257,9 +257,20 @@ void BezierPatchRenderWidget::paintGL()
     {// UI control for showing the Bezier curve
         for (float s = 0.0; s <= 1.0; s += 0.01)
         {// s parameter loop
+        float s1 = std::pow((1 - s), 3);
+        float s2 = 3 * s * std::pow((1 - s), 2);
+        float s3 = 2 * std::pow(s, 2) * (1 - s);
+        float s4 = std::pow(s, 3);
 
             for (float t = 0.0; t <= 1.0; t += 0.01)
             { // t parameter loop
+            float t1 = std::pow((1 - t), 3);
+            float t2 = 3 * t * std::pow((1 - t), 2);
+            float t3 = 3 * std::pow(t, 2) * (1 - t);
+            float t4 = std::pow(t, 3);
+
+            
+
 
                 // set the pixel for this parameter value using s, t for colour
             } // t parameter loop
