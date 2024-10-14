@@ -29,6 +29,8 @@
 
 #define N_THREADS 16
 
+#define PI 3.14159265359f
+
 // constructor
 BezierPatchRenderWidget::BezierPatchRenderWidget
         (   
@@ -111,6 +113,7 @@ void BezierPatchRenderWidget::paintGL()
 
     float near = 0.01f;
     float far = 200.0f;
+    float left, right, bottom, top;
 
     // Projection matrix
     projectionMatrix.SetIdentity();
@@ -121,8 +124,6 @@ void BezierPatchRenderWidget::paintGL()
     if (renderParameters->orthoProjection) {
         viewMatrix.SetTranslation(Vector3(renderParameters->xTranslate, renderParameters->yTranslate, renderParameters->zTranslate-1));
         viewMatrix = viewMatrix * renderParameters->rotationMatrix;
-
-        float left, right, bottom, top;
 
         if (aspectRatio > 1.0f) {
             left = -aspectRatio * (10.0f / renderParameters->zTranslate);
@@ -146,14 +147,48 @@ void BezierPatchRenderWidget::paintGL()
         viewMatrix.SetTranslation(Vector3(-renderParameters->xTranslate, -renderParameters->yTranslate, 9.0f - renderParameters->zTranslate));
         viewMatrix = viewMatrix * renderParameters->rotationMatrix;
 
-        float tanHalfFov = std::tan((90.0f * 3.14159265359f / 180.0f) / 2.0f);
+        if (aspectRatio > 1.0f) {
+            left = -aspectRatio * 0.01f;
+            right = aspectRatio * 0.01f;
+            bottom = -0.01f;
+            top = 0.01f;
+        } else {
+            left = -0.01f;
+            right = 0.01f;
+            bottom = -aspectRatio * 0.01f;
+            top = aspectRatio * 0.01f;
+        }
 
-        projectionMatrix[0][0] = 1.0f / (aspectRatio * tanHalfFov);
-        projectionMatrix[1][1] = 1.0f / tanHalfFov;
-        projectionMatrix[2][2] = -((far + near) / (far - near));
+        // glFrustum
+        projectionMatrix[0][0] = (2.0f * near) / (right - left);
+        projectionMatrix[1][1] = (2.0f * near) / (top - bottom);
+        projectionMatrix[2][2] = -(far + near) / (far - near);
         projectionMatrix[3][3] = 0.0f;
-        projectionMatrix[2][3] = -2.0f * ((far + near) / (far - near));
+        projectionMatrix[0][2] = (right + left) / (right / left);
+        projectionMatrix[1][2] = (top + bottom) / (top - bottom);
         projectionMatrix[3][2] = -1.0f;
+        projectionMatrix[2][3] = -(2.0f * far * near) / (far - near);
+
+        // if (renderParameters->bezierEnabled) {
+        //     projectionMatrix.SetIdentity();
+        //     float tanHalfFov = std::tan((90.0f * PI / 180.0f) / 2.0f);
+        //     // gluPerspective
+        //     projectionMatrix[0][0] = 1.0f / (aspectRatio * tanHalfFov);
+        //     projectionMatrix[1][1] = 1.0f / tanHalfFov;
+        //     projectionMatrix[2][2] = -((far + near) / (far - near));
+        //     projectionMatrix[3][3] = 0.0f;
+        //     projectionMatrix[2][3] = -2.0f * ((far * near) / (far - near));
+        //     projectionMatrix[3][2] = -1.0f;
+        // }
+
+        // if (true) {
+        //     projectionMatrix[0][0] = 1.0f / (aspectRatio * tanHalfFov);
+        //     projectionMatrix[1][1] = 1.0f / tanHalfFov;
+        //     projectionMatrix[2][2] = ((far + near) / (near - far));
+        //     projectionMatrix[3][3] = 0.0f;
+        //     projectionMatrix[2][3] = 2.0f * ((far * near) / (far - near));
+        //     projectionMatrix[3][2] = -1.0f;
+        // }
     }
 
     mvpMatrix.SetIdentity();
@@ -161,6 +196,29 @@ void BezierPatchRenderWidget::paintGL()
 
     if(renderParameters->verticesEnabled)
     {// UI control for showing vertices
+        Matrix4 tM = Matrix4();
+        tM.SetTranslation(Vector3(-3.0f, 3.0f, 4.0f));
+        Matrix4 pM = projectionMatrix * (viewMatrix * tM);
+        for (float phi = 0.0f; phi < 2.0f * PI; phi += PI / 30.0f) {
+                for (float theta = 0.0f; theta < 2.0f * PI; theta += PI / 30.0f) {
+                    Homogeneous4 point(Point3(
+                        0.1f * std::cos(phi) * std::cos(theta), 
+                        0.1f * std::cos(phi) * std::sin(theta),
+                        0.1f * std::sin(phi)));
+                    Homogeneous4 transformedPoint = pM * point;
+                    Homogeneous4 ndcs(transformedPoint.Point());
+
+                    ndcs.x = (ndcs.x + 1) / 2 * frameBuffer.width;
+                    ndcs.y = (ndcs.y + 1) / 2 * frameBuffer.height;
+                        
+                    Point3 screenCoord(ndcs.x, ndcs.y, ndcs.z);
+
+                    if (screenCoord.x >= 0 && screenCoord.x <= frameBuffer.width - 1 && screenCoord.y >= 0 && screenCoord.y <= frameBuffer.height - 1) {
+                        frameBuffer[(int)screenCoord.y][(int)screenCoord.x] = RGBAValue(0.0f, 255.0f, 0.0f, 255.0f);
+                    }
+                }
+            }
+
         for(int i = 0 ; i < (*patchControlPoints).vertices.size(); i++)
         {
             // draw each vertex as a point
@@ -168,6 +226,43 @@ void BezierPatchRenderWidget::paintGL()
             //  ... keep the others in white)
 
             // consider ways to make the rendered points bigger than just 1x1 pixel on the screen
+
+            RGBAValue colour;
+            if (i == renderParameters->activeVertex) {
+                colour = RGBAValue(255.0f, 0.0f, 0.0f, 255.0f);
+            } else {
+                colour = RGBAValue(255.0f * 0.75, 255.0f * 0.75, 255.0f * 0.75, 255.0f);
+            }
+
+            Matrix4 translationMatrix = Matrix4();
+            translationMatrix.SetTranslation(Vector3(
+                (*patchControlPoints).vertices[(i/4)*4+(i%4)][0],
+                (*patchControlPoints).vertices[(i/4)*4+(i%4)][1],
+                (*patchControlPoints).vertices[(i/4)*4+(i%4)][2]));
+            
+            Matrix4 pointMatrix = projectionMatrix * (viewMatrix * translationMatrix);
+
+            float radius = 0.1f;
+
+            for (float phi = 0.0f; phi < 2.0f * PI; phi += PI / 30.0f) {
+                for (float theta = 0.0f; theta < 2.0f * PI; theta += PI / 30.0f) {
+                    Homogeneous4 point(Point3(
+                        radius * std::cos(phi) * std::cos(theta), 
+                        radius * std::cos(phi) * std::sin(theta),
+                        radius * std::sin(phi)));
+                    Homogeneous4 transformedPoint = pointMatrix * point;
+                    Homogeneous4 ndcs(transformedPoint.Point());
+
+                    ndcs.x = (ndcs.x + 1) / 2 * frameBuffer.width;
+                    ndcs.y = (ndcs.y + 1) / 2 * frameBuffer.height;
+                        
+                    Point3 screenCoord(ndcs.x, ndcs.y, ndcs.z);
+
+                    if (screenCoord.x >= 0 && screenCoord.x <= frameBuffer.width - 1 && screenCoord.y >= 0 && screenCoord.y <= frameBuffer.height - 1) {
+                        frameBuffer[(int)screenCoord.y][(int)screenCoord.x] = colour;
+                    }
+                }
+            }
         }
     }// UI control for showing vertices
 
@@ -175,22 +270,17 @@ void BezierPatchRenderWidget::paintGL()
     {// UI control for showing axis-aligned planes
 
         // Planes are axis aligned grids made up of lines
-
         for (int i = -5; i <= 5; i += 2) {
-            drawLine(Point3(-5, 0, i), Point3(5, 0, i), RGBAValue(255.0f, 0.0f, 0.0f, 255.0f)); // x plane horizontal
-            drawLine(Point3(i, 0, -5), Point3(i, 0, 5), RGBAValue(255.0f, 0.0f, 0.0f, 255.0f)); // x plane vertical
-            drawLine(Point3(0, i, -5), Point3(0, i, 5), RGBAValue(0.0f, 0.0f, 255.0f, 255.0f)); // z plane horizontal
-            drawLine(Point3(0, -5, i), Point3(0, 5, i), RGBAValue(0.0f, 0.0f, 255.0f, 255.0f)); // z plane vertical
+            drawLine(Point3(-5, 0, i), Point3(5, 0, i), RGBAValue(255.0f / 4, 0.0f, 255.0f / 4, 255.0f)); // x plane horizontal
+            drawLine(Point3(i, 0, -5), Point3(i, 0, 5), RGBAValue(255.0f / 4, 0.0f, 255.0f / 4, 255.0f)); // x plane vertical
+            drawLine(Point3(0, i, -5), Point3(0, i, 5), RGBAValue(0.0f, 255.0f / 4, 255.0f / 4, 255.0f)); // z plane horizontal
+            drawLine(Point3(0, -5, i), Point3(0, 5, i), RGBAValue(0.0f, 255.0f / 4, 255.0f / 4, 255.0f)); // z plane vertical
         }
 
         for (int i = -5; i <= 5; i++) {
-            drawLine(Point3(-5, i, 0), Point3(5, i, 0), RGBAValue(0.0f, 255.0f, 0.0f, 255.0f)); // y plane horizontal
-            drawLine(Point3(i, -5, 0), Point3(i, 5, 0), RGBAValue(0.0f, 255.0f, 0.0f, 255.0f)); // y plane vertical
+            drawLine(Point3(-5, i, 0), Point3(5, i, 0), RGBAValue(255.0f / 4, 255.0f / 4, 0.0f, 255.0f)); // y plane horizontal
+            drawLine(Point3(i, -5, 0), Point3(i, 5, 0), RGBAValue(255.0f / 4, 255.0f / 4, 0.0f, 255.0f)); // y plane vertical
         }
-
-        // Draw the vertical x axis plane (in purple)
-        // Draw the vertical y axis plane (in blue)
-        // Draw the flat plane (in brown)
 
         // Refer to RenderWidget.cpp for the precise colours.
 
@@ -199,6 +289,35 @@ void BezierPatchRenderWidget::paintGL()
     if(renderParameters->netEnabled)
     {// UI control for showing the Bezier control net
      // (control points connected with lines)
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 3; j++) {
+                Point3 controlPoint1(
+                    (*patchControlPoints).vertices[i*4+j][0],
+                    (*patchControlPoints).vertices[i*4+j][1],
+                    (*patchControlPoints).vertices[i*4+j][2]);
+                Point3 controlPoint2(
+                    (*patchControlPoints).vertices[i*4+j+1][0],
+                    (*patchControlPoints).vertices[i*4+j+1][1],
+                    (*patchControlPoints).vertices[i*4+j+1][2]);
+                
+                drawLine(controlPoint1, controlPoint2, RGBAValue(0.0f, 255.0f, 0.0f, 255.0f));
+            }
+        }
+
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 3; j++) {
+                Point3 controlPoint1(
+                    (*patchControlPoints).vertices[i+j*4][0],
+                    (*patchControlPoints).vertices[i+j*4][1],
+                    (*patchControlPoints).vertices[i+j*4][2]);
+                Point3 controlPoint2(
+                    (*patchControlPoints).vertices[i+4+j*4][0],
+                    (*patchControlPoints).vertices[i+4+j*4][1],
+                    (*patchControlPoints).vertices[i+4+j*4][2]);
+                
+                drawLine(controlPoint1, controlPoint2, RGBAValue(0.0f, 255.0f, 0.0f, 255.0f));
+            }
+        }
     }// UI control for showing the Bezier control net
 
 

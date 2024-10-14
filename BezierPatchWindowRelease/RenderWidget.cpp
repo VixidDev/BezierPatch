@@ -156,11 +156,6 @@ void RenderWidget::resizeGL(int w, int h)
             glFrustum ( -0.01, 0.01,
                       -aspectRatio * 0.01, aspectRatio * 0.01,
                       0.01, 200.0);
-            float a[16];
-            glGetFloatv(GL_PROJECTION_MATRIX, a);
-            for (int i = 0; i < 4; i++) {
-                //std::cout << a[i * 4 + 0] << " " << a[i * 4 + 1] << " " << a[i * 4 + 2] << " " << a[i * 4 + 3] << std::endl;
-            }
         }
     }
 
@@ -200,13 +195,6 @@ void RenderWidget::paintGL()
 
     // apply rotation matrix from arcball
     glMultMatrixf(renderParameters->rotationMatrix.columnMajor().coordinates);
-
-    float a[16];
-    glGetFloatv(GL_MODELVIEW_MATRIX, a);
-    //std::cout << "Model view after rotation:" << std::endl;
-    for (int i = 0; i < 4; i++) {
-        //std::cout << a[i * 4 + 0] << " " << a[i * 4 + 1] << " " << a[i * 4 + 2] << " " << a[i * 4 + 3] << std::endl;
-    }
 
     if(renderParameters->planesEnabled)
     { // showPlanes
