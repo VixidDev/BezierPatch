@@ -115,6 +115,7 @@ Homogeneous4 Homogeneous4::operator *(float factor) const
     returnVal.x = x * factor;
     returnVal.y = y * factor;
     returnVal.z = z * factor;
+    returnVal.w = w * factor;
 
     return returnVal;
     } // Homogeneous4::operator *()

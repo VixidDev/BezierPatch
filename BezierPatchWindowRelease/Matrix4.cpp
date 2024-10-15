@@ -77,7 +77,7 @@ Homogeneous4 Matrix4::operator *(const Homogeneous4 &vector) const
 Point3 Matrix4::operator *(const Vector3 &vector) const
     { // cartesian multiplication
     // convert to Homogeneous coords and multiply
-    Homogeneous4 productVector = (*this) * Homogeneous4(vector);
+    Homogeneous4 productVector;// = (*this) * Homogeneous4(vector);
 
     // then divide back through
     return productVector.Point();

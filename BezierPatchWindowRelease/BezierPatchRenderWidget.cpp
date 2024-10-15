@@ -177,7 +177,9 @@ void BezierPatchRenderWidget::paintGL()
 
     if(renderParameters->verticesEnabled)
     {// UI control for showing vertices
-        for(int i = 0 ; i < (*patchControlPoints).vertices.size(); i++)
+
+
+        for(int i = 0; i < (*patchControlPoints).vertices.size(); i++)
         {
             // draw each vertex as a point
             // (paint the active vertex in red, ...
@@ -259,28 +261,32 @@ void BezierPatchRenderWidget::paintGL()
 
         for (float s = 0.0; s <= 1.0; s += 0.001)
         {// s parameter loop
-        float s1 = std::pow((1 - s), 3);
-        float s2 = 3 * s * std::pow((1 - s), 2);
-        float s3 = 3 * std::pow(s, 2) * (1 - s);
-        float s4 = std::pow(s, 3);
+
+        // Precompute s coefficient terms
+        float oneMinusS = 1 - s;
+        float oneMinusSSquared = oneMinusS * oneMinusS;
+        float oneMinusSCubed = oneMinusS * oneMinusS * oneMinusS;
+        float sSquared = s * s;
+        float sCubed = s * s * s;
+
+        // Calculate terms for the 4 beziers
+        float sTerm1 = oneMinusSCubed;
+        float sTerm2 = 3 * s * oneMinusSSquared;
+        float sTerm3 = 3 * sSquared * oneMinusS;
+        float sTerm4 = sCubed;
 
             for (float t = 0.0; t <= 1.0; t += 0.001)
             { // t parameter loop
-            float t1 = std::pow((1 - t), 3);
-            float t2 = 3 * t * std::pow((1 - t), 2);
-            float t3 = 3 * std::pow(t, 2) * (1 - t);
-            float t4 = std::pow(t, 3);
 
-            Homogeneous4 point = 
-                        s1 * (t1 * controlPoints[0] + t2 * controlPoints[1] + t3 * controlPoints[2] + t4 * controlPoints[3]) +
-                        s2 * (t1 * controlPoints[4] + t2 * controlPoints[5] + t3 * controlPoints[6] + t4 * controlPoints[7]) +
-                        s3 * (t1 * controlPoints[8] + t2 * controlPoints[9] + t3 * controlPoints[10] + t4 * controlPoints[11]) +
-                        s4 * (t1 * controlPoints[12] + t2 * controlPoints[13] + t3 * controlPoints[14] + t4 * controlPoints[15]);
+            // Find coordinates for each bezier curve at current s and t parameters
+            Homogeneous4 bezier1 = sTerm1 * bezier(t, controlPoints[0], controlPoints[1], controlPoints[2], controlPoints[3]);
+            Homogeneous4 bezier2 = sTerm2 * bezier(t, controlPoints[4], controlPoints[5], controlPoints[6], controlPoints[7]);
+            Homogeneous4 bezier3 = sTerm3 * bezier(t, controlPoints[8], controlPoints[9], controlPoints[10], controlPoints[11]);
+            Homogeneous4 bezier4 = sTerm4 * bezier(t, controlPoints[12], controlPoints[13], controlPoints[14], controlPoints[15]);
 
-            point.w = 1.0f; // No idea why I have to manually set w to 1, but the above equation sets the Homogeneous4 to 0
+            Homogeneous4 result = bezier1 + bezier2 + bezier3 + bezier4; // Point from all 4 terms
 
-            setPixel(point, mvpMatrix, RGBAValue(255.0f * s, 255.0f / 2, 255.0f * t, 255.0f));
-
+            setPixel(result, mvpMatrix, RGBAValue(255.0f * s, 255.0f / 2, 255.0f * t, 255.0f)); // Set pixel
                 // set the pixel for this parameter value using s, t for colour
             } // t parameter loop
         } // s parameter loop
@@ -290,6 +296,24 @@ void BezierPatchRenderWidget::paintGL()
     glDrawPixels(frameBuffer.width, frameBuffer.height, GL_RGBA, GL_UNSIGNED_BYTE, frameBuffer.block);
 
 } // BezierPatchRenderWidget::paintGL()
+
+Homogeneous4 BezierPatchRenderWidget::bezier(float parameter, Point3 controlPoint1, Point3 controlPoint2, Point3 controlPoint3, Point3 controlPoint4) {
+    // Precompute t coefficients for terms
+    float oneMinust = 1 - parameter;
+    float oneMinustSquared = oneMinust * oneMinust;
+    float oneMinustCubed = oneMinust * oneMinust * oneMinust;
+    float tSquared = parameter * parameter;
+    float tCubed = parameter * parameter * parameter;
+
+    // Calculate each term of the bezier for each control point
+    Homogeneous4 term1 = oneMinustCubed * controlPoint1;
+    Homogeneous4 term2 = 3 * parameter * oneMinustSquared * controlPoint2;
+    Homogeneous4 term3 = 3 * tSquared * oneMinust * controlPoint3;
+    Homogeneous4 term4 = tCubed * controlPoint4;
+
+    // Return sum of terms
+    return term1 + term2 + term3 + term4;
+}
 
 void BezierPatchRenderWidget::drawLine(Point3 start, Point3 end, RGBAValue colour) {
     Vector3 difference = end - start;
