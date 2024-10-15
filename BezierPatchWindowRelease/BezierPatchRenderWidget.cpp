@@ -255,22 +255,31 @@ void BezierPatchRenderWidget::paintGL()
 
     if(renderParameters->bezierEnabled)
     {// UI control for showing the Bezier curve
-        for (float s = 0.0; s <= 1.0; s += 0.01)
+        std::vector<Point3> controlPoints = renderParameters->patchControlPoints->vertices;
+
+        for (float s = 0.0; s <= 1.0; s += 0.001)
         {// s parameter loop
         float s1 = std::pow((1 - s), 3);
         float s2 = 3 * s * std::pow((1 - s), 2);
-        float s3 = 2 * std::pow(s, 2) * (1 - s);
+        float s3 = 3 * std::pow(s, 2) * (1 - s);
         float s4 = std::pow(s, 3);
 
-            for (float t = 0.0; t <= 1.0; t += 0.01)
+            for (float t = 0.0; t <= 1.0; t += 0.001)
             { // t parameter loop
             float t1 = std::pow((1 - t), 3);
             float t2 = 3 * t * std::pow((1 - t), 2);
             float t3 = 3 * std::pow(t, 2) * (1 - t);
             float t4 = std::pow(t, 3);
 
-            
+            Homogeneous4 point = 
+                        s1 * (t1 * controlPoints[0] + t2 * controlPoints[1] + t3 * controlPoints[2] + t4 * controlPoints[3]) +
+                        s2 * (t1 * controlPoints[4] + t2 * controlPoints[5] + t3 * controlPoints[6] + t4 * controlPoints[7]) +
+                        s3 * (t1 * controlPoints[8] + t2 * controlPoints[9] + t3 * controlPoints[10] + t4 * controlPoints[11]) +
+                        s4 * (t1 * controlPoints[12] + t2 * controlPoints[13] + t3 * controlPoints[14] + t4 * controlPoints[15]);
 
+            point.w = 1.0f; // No idea why I have to manually set w to 1, but the above equation sets the Homogeneous4 to 0
+
+            setPixel(point, mvpMatrix, RGBAValue(255.0f * s, 255.0f / 2, 255.0f * t, 255.0f));
 
                 // set the pixel for this parameter value using s, t for colour
             } // t parameter loop
