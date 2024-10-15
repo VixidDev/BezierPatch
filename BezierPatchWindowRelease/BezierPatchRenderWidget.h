@@ -30,6 +30,11 @@
 #include "RenderParameters.h"
 #include "RGBAImage.h"
 
+struct Fragment {
+	Homogeneous4 point;
+	Matrix4 transformationMatrix;
+	RGBAValue colour;
+};
 
 // class for a render widget with arcball linked to an external arcball widget
 class BezierPatchRenderWidget : public QOpenGLWidget
@@ -45,6 +50,8 @@ class BezierPatchRenderWidget : public QOpenGLWidget
     // An image to use as a framebuffer ...
     // ... that we will set individual pixels to
 	RGBAImage frameBuffer;
+
+	std::vector<Fragment> fragments;
 
 	// Projection matrix
 	Matrix4 projectionMatrix;

@@ -97,6 +97,12 @@ void BezierPatchRenderWidget::paintGL()
     // (glDrawPixels then puts the frameBuffer on the screen
     //   to display the final image at the end of paintGL)
 
+
+    // Get start time of frame
+    auto start = std::chrono::steady_clock::now();
+
+    fragments.reserve(1000000);
+
     // clear the (non-OpenGL) buffer where we will set pixels to:
     frameBuffer.clear(renderParameters->theClearColor);
 
@@ -179,9 +185,10 @@ void BezierPatchRenderWidget::paintGL()
     // Model-view-projection matrix
     mvpMatrix.SetIdentity();
     mvpMatrix = projectionMatrix * viewMatrix; // Combine projection and view matrix for transforming to clip space
-
+    
     if(renderParameters->verticesEnabled)
     {// UI control for showing vertices
+        #pragma omp parallel for
         for(int i = 0; i < (*patchControlPoints).vertices.size(); i++)
         {
             // draw each vertex as a point
@@ -209,13 +216,14 @@ void BezierPatchRenderWidget::paintGL()
     {// UI control for showing axis-aligned planes
 
         // Planes are axis aligned grids made up of lines
+        #pragma omp parallel for
         for (int i = -5; i <= 5; i += 2) {
             drawLine(Point3(-5, 0, i), Point3(5, 0, i), RGBAValue(255.0f / 4, 0.0f, 255.0f / 4, 255.0f)); // x plane horizontal
             drawLine(Point3(i, 0, -5), Point3(i, 0, 5), RGBAValue(255.0f / 4, 0.0f, 255.0f / 4, 255.0f)); // x plane vertical
             drawLine(Point3(0, i, -5), Point3(0, i, 5), RGBAValue(0.0f, 255.0f / 4, 255.0f / 4, 255.0f)); // z plane horizontal
             drawLine(Point3(0, -5, i), Point3(0, 5, i), RGBAValue(0.0f, 255.0f / 4, 255.0f / 4, 255.0f)); // z plane vertical
         }
-
+        #pragma omp parallel for
         for (int i = -5; i <= 5; i++) {
             drawLine(Point3(-5, i, 0), Point3(5, i, 0), RGBAValue(255.0f / 4, 255.0f / 4, 0.0f, 255.0f)); // y plane horizontal
             drawLine(Point3(i, -5, 0), Point3(i, 5, 0), RGBAValue(255.0f / 4, 255.0f / 4, 0.0f, 255.0f)); // y plane vertical
@@ -225,11 +233,14 @@ void BezierPatchRenderWidget::paintGL()
 
     }// UI control for showing axis-aligned planes
 
+    
+
     if(renderParameters->netEnabled)
     {// UI control for showing the Bezier control net
      // (control points connected with lines)
 
         // Draw horizontal lines between control points
+        #pragma omp parallel for
         for (int i = 0; i < 4; i++) {
             for (int j = 0; j < 3; j++) {
                 Point3 controlPoint1(                           // First control point
@@ -247,6 +258,7 @@ void BezierPatchRenderWidget::paintGL()
         }
 
         // Draw the vertical lines between control points
+        #pragma omp parallel for
         for (int i = 0; i < 4; i++) {
             for (int j = 0; j < 3; j++) {
                 Point3 controlPoint1(                            // First control point
@@ -269,7 +281,8 @@ void BezierPatchRenderWidget::paintGL()
         // Get the control points in a variable with shorter name for ease of reading
         std::vector<Point3> controlPoints = renderParameters->patchControlPoints->vertices;
 
-        for (float s = 0.0; s <= 1.0; s += 0.001)
+        #pragma omp parallel for
+        for (int s = 0; s <= 1000; s++)
         {// s parameter loop
             for (float t = 0.0; t <= 1.0; t += 0.001)
             { // t parameter loop
@@ -281,14 +294,52 @@ void BezierPatchRenderWidget::paintGL()
             Homogeneous4 bezier4 = bezier(t, controlPoints[12], controlPoints[13], controlPoints[14], controlPoints[15]);
 
             // Find final point using the previous 4 points as points for a final bezier curve with s parameter
-            Homogeneous4 finalPoint = bezier(s, bezier1, bezier2, bezier3, bezier4);
+            Homogeneous4 finalPoint = bezier((float)s / 1000.0f, bezier1, bezier2, bezier3, bezier4);
+
+            #pragma omp critical 
+            {
+                fragments.emplace_back(Fragment{finalPoint, mvpMatrix, RGBAValue(255.0f * (float)s / 1000.0f, 255.0f / 2, 255.0f * t, 255.0f)});
+            }
 
             // Set pixel at final point
-            frameBuffer.setPixel(finalPoint, mvpMatrix, RGBAValue(255.0f * s, 255.0f / 2, 255.0f * t, 255.0f));
+            //frameBuffer.setPixel(finalPoint, mvpMatrix, RGBAValue(255.0f * (float)s / 1000.0f, 255.0f / 2, 255.0f * t, 255.0f));
                 // set the pixel for this parameter value using s, t for colour
             } // t parameter loop
         } // s parameter loop
     }
+
+
+    struct {
+        bool operator()(Fragment left, Fragment right) const {
+            if (left.point.y < right.point.y) return true;
+            if (left.point.y > right.point.y) return false;
+            if (left.point.x < right.point.x) return true;
+            if (left.point.x > right.point.x) return false;
+            if (left.point.z > right.point.z) return true;
+            if (left.point.z < right.point.z) return false;
+            return false; 
+        }
+    } lessFunctor;
+
+    
+    auto sortStart = std::chrono::steady_clock::now();
+
+    std::sort(fragments.begin(), fragments.end(), lessFunctor);
+
+    auto sortEnd = std::chrono::steady_clock::now();
+    auto sortTimeTaken = std::chrono::duration_cast<std::chrono::microseconds>(sortEnd - sortStart);
+    std::cout << "Sort time taken: " << sortTimeTaken.count() / 1000000.0f << " seconds." << std::endl;
+
+
+    for (int i = 0; i < fragments.size() - 1; i++) {
+        frameBuffer.setPixel(fragments.at(i).point, fragments.at(i).transformationMatrix, fragments.at(i).colour);
+    }
+
+    fragments.clear();
+
+    auto end = std::chrono::steady_clock::now();
+    auto timeTaken = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    std::cout << "Time taken: " << timeTaken.count() / 1000000.0f << " seconds." << std::endl;
 
     // Put the custom framebufer on the screen to display the image
     glDrawPixels(frameBuffer.width, frameBuffer.height, GL_RGBA, GL_UNSIGNED_BYTE, frameBuffer.block);
@@ -320,7 +371,11 @@ void BezierPatchRenderWidget::drawLine(Point3 start, Point3 end, RGBAValue colou
     // Loop over parameter t
     for (float t = 0.0f; t < 1.0f; t += 0.001f) {
         Homogeneous4 pointOnLine(Point3(start + difference * t)); // Find point travelled along line based on t and convert to Homogeneous 4 for transformation
-        frameBuffer.setPixel(pointOnLine, mvpMatrix, colour); // Set pixel at given point along line
+        #pragma omp critical 
+        {
+            fragments.emplace_back(Fragment{pointOnLine, mvpMatrix, colour});
+        }
+        //frameBuffer.setPixel(pointOnLine, mvpMatrix, colour); // Set pixel at given point along line
     }
 }
 
@@ -343,9 +398,14 @@ void BezierPatchRenderWidget::drawPoint(Point3 point, RGBAValue colour) {
                 radius * std::cos(phi) * std::cos(theta),  
                 radius * std::cos(phi) * std::sin(theta),
                 radius * std::sin(phi)));
+
+            #pragma omp critical 
+            {
+                fragments.emplace_back(Fragment{point, pointMatrix, colour});
+            }
             
             // Set pixel of sphere points
-            frameBuffer.setPixel(point, pointMatrix, colour);
+            //frameBuffer.setPixel(point, pointMatrix, colour);
         }
     }
 }
