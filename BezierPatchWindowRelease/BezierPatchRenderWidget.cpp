@@ -109,8 +109,9 @@ void BezierPatchRenderWidget::paintGL()
 
     float w = (float) frameBuffer.width;
     float h = (float) frameBuffer.height;
-    float aspectRatio = w / h;
+    float aspectRatio = w / h; // Calculate aspect ratio based on width and height
 
+    // Set near and far planes
     float near = 0.01f;
     float far = 200.0f;
     float left, right, bottom, top;
@@ -122,9 +123,11 @@ void BezierPatchRenderWidget::paintGL()
     viewMatrix.SetIdentity();
 
     if (renderParameters->orthoProjection) {
+        // Set view matrix translation and rotation for orthographic projection
         viewMatrix.SetTranslation(Vector3(renderParameters->xTranslate, renderParameters->yTranslate, renderParameters->zTranslate-1));
         viewMatrix = viewMatrix * renderParameters->rotationMatrix;
 
+        // Set different left, right, bottom and top variables based on aspect ratio, in line with RenderWidget.cpp
         if (aspectRatio > 1.0f) {
             left = -aspectRatio * (10.0f / renderParameters->zTranslate);
             right = aspectRatio * (10.0f / renderParameters->zTranslate);
@@ -137,7 +140,7 @@ void BezierPatchRenderWidget::paintGL()
             top = aspectRatio * (10.0f / renderParameters->zTranslate);
         }
 
-        // glOrtho
+        // glOrtho projection matrix
         projectionMatrix[0][0] = 2.0f / (right - left);
         projectionMatrix[1][1] = 2.0f / (top - bottom);
         projectionMatrix[2][2] = -2.0f / (far - near);
@@ -145,9 +148,11 @@ void BezierPatchRenderWidget::paintGL()
         projectionMatrix[1][3] = -(top + bottom) / (top - bottom);
         projectionMatrix[2][3] = -(far * near) / (far - near);
     } else {
+        // Set view matrix translation and rotation for perspective projection
         viewMatrix.SetTranslation(Vector3(renderParameters->xTranslate, renderParameters->yTranslate, -(9.0f - renderParameters->zTranslate)));
         viewMatrix = viewMatrix * renderParameters->rotationMatrix;
 
+        // Again, set different projection matrix parameters based on current aspect ratio
         if (aspectRatio > 1.0f) {
             left = -aspectRatio * 0.01f;
             right = aspectRatio * 0.01f;
@@ -160,7 +165,7 @@ void BezierPatchRenderWidget::paintGL()
             top = aspectRatio * 0.01f;
         }
 
-        // glFrustum
+        // glFrustum projection matrix
         projectionMatrix[0][0] = (2.0f * near) / (right - left);
         projectionMatrix[1][1] = (2.0f * near) / (top - bottom);
         projectionMatrix[2][2] = -(far + near) / (far - near);
@@ -173,7 +178,7 @@ void BezierPatchRenderWidget::paintGL()
 
     // Model-view-projection matrix
     mvpMatrix.SetIdentity();
-    mvpMatrix = projectionMatrix * viewMatrix;
+    mvpMatrix = projectionMatrix * viewMatrix; // Combine projection and view matrix for transforming to clip space
 
     if(renderParameters->verticesEnabled)
     {// UI control for showing vertices
@@ -187,12 +192,13 @@ void BezierPatchRenderWidget::paintGL()
 
             // consider ways to make the rendered points bigger than just 1x1 pixel on the screen
             RGBAValue colour;
-            if (i == renderParameters->activeVertex) {
+            if (i == renderParameters->activeVertex) { // Set colour of active vertex to red
                 colour = RGBAValue(255.0f, 0.0f, 0.0f, 255.0f);
-            } else {
+            } else {                                   // keep others as an off white
                 colour = RGBAValue(255.0f * 0.75, 255.0f * 0.75, 255.0f * 0.75, 255.0f);
             }
 
+            // Draw the 
             drawPoint(Point3(
                 (*patchControlPoints).vertices[(i/4)*4+(i%4)][0],
                 (*patchControlPoints).vertices[(i/4)*4+(i%4)][1],
@@ -261,32 +267,19 @@ void BezierPatchRenderWidget::paintGL()
 
         for (float s = 0.0; s <= 1.0; s += 0.001)
         {// s parameter loop
-
-        // Precompute s coefficient terms
-        float oneMinusS = 1 - s;
-        float oneMinusSSquared = oneMinusS * oneMinusS;
-        float oneMinusSCubed = oneMinusS * oneMinusS * oneMinusS;
-        float sSquared = s * s;
-        float sCubed = s * s * s;
-
-        // Calculate terms for the 4 beziers
-        float sTerm1 = oneMinusSCubed;
-        float sTerm2 = 3 * s * oneMinusSSquared;
-        float sTerm3 = 3 * sSquared * oneMinusS;
-        float sTerm4 = sCubed;
-
             for (float t = 0.0; t <= 1.0; t += 0.001)
             { // t parameter loop
 
-            // Find coordinates for each bezier curve at current s and t parameters
-            Homogeneous4 bezier1 = sTerm1 * bezier(t, controlPoints[0], controlPoints[1], controlPoints[2], controlPoints[3]);
-            Homogeneous4 bezier2 = sTerm2 * bezier(t, controlPoints[4], controlPoints[5], controlPoints[6], controlPoints[7]);
-            Homogeneous4 bezier3 = sTerm3 * bezier(t, controlPoints[8], controlPoints[9], controlPoints[10], controlPoints[11]);
-            Homogeneous4 bezier4 = sTerm4 * bezier(t, controlPoints[12], controlPoints[13], controlPoints[14], controlPoints[15]);
+            // Find coordinates from each bezier curve at t parameters
+            Homogeneous4 bezier1 = bezier(t, controlPoints[0], controlPoints[1], controlPoints[2], controlPoints[3]);
+            Homogeneous4 bezier2 = bezier(t, controlPoints[4], controlPoints[5], controlPoints[6], controlPoints[7]);
+            Homogeneous4 bezier3 = bezier(t, controlPoints[8], controlPoints[9], controlPoints[10], controlPoints[11]);
+            Homogeneous4 bezier4 = bezier(t, controlPoints[12], controlPoints[13], controlPoints[14], controlPoints[15]);
 
-            Homogeneous4 result = bezier1 + bezier2 + bezier3 + bezier4; // Point from all 4 terms
+            // Find final point using the previous 4 points as points for a final bezier curve with s parameter
+            Homogeneous4 finalPoint = bezier(s, bezier1, bezier2, bezier3, bezier4);
 
-            setPixel(result, mvpMatrix, RGBAValue(255.0f * s, 255.0f / 2, 255.0f * t, 255.0f)); // Set pixel
+            setPixel(finalPoint, mvpMatrix, RGBAValue(255.0f * s, 255.0f / 2, 255.0f * t, 255.0f)); // Set pixel
                 // set the pixel for this parameter value using s, t for colour
             } // t parameter loop
         } // s parameter loop
@@ -297,7 +290,7 @@ void BezierPatchRenderWidget::paintGL()
 
 } // BezierPatchRenderWidget::paintGL()
 
-Homogeneous4 BezierPatchRenderWidget::bezier(float parameter, Point3 controlPoint1, Point3 controlPoint2, Point3 controlPoint3, Point3 controlPoint4) {
+Homogeneous4 BezierPatchRenderWidget::bezier(float parameter, Homogeneous4 controlPoint1, Homogeneous4 controlPoint2, Homogeneous4 controlPoint3, Homogeneous4 controlPoint4) {
     // Precompute t coefficients for terms
     float oneMinust = 1 - parameter;
     float oneMinustSquared = oneMinust * oneMinust;
