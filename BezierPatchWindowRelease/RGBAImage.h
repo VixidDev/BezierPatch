@@ -23,6 +23,9 @@
 
 #include "RGBAValue.h"
 
+class Homogeneous4; // Forward decleare Homogeneous4
+class Matrix4; // Forward declare Matrix4
+
 // the class itself
 class RGBAImage
     { // class RGBAImage
@@ -44,6 +47,9 @@ class RGBAImage
     
     // resizes the image, destroying any contents
     bool Resize(long Width, long Height);
+
+    // method to set a pixel with a given point in clip space
+    void setPixel(Homogeneous4 transformedPoint, Matrix4 transformationMatrix, RGBAValue colour);
 
     // indexing - retrieves the beginning of a line
     // array indexing will then retrieve an element

@@ -73,7 +73,6 @@ class BezierPatchRenderWidget : public QOpenGLWidget
 	Homogeneous4 bezier(float parameter, Homogeneous4 controlPoint1, Homogeneous4 controlPoint2, Homogeneous4 controlPoint3, Homogeneous4 controlPoint4);
 	void drawLine(Point3 start, Point3 end, RGBAValue colour);
 	void drawPoint(Point3 point, RGBAValue colour);
-	void setPixel(Homogeneous4 point, Matrix4 transformationMatrix, RGBAValue colour);
 			
 	protected:
 	// called when OpenGL context is set up

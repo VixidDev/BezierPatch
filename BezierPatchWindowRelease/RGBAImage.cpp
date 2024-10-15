@@ -27,6 +27,8 @@
 #include "string.h"
 
 #include "RGBAImage.h"
+#include "Homogeneous4.h"
+#include "Matrix4.h"
 
 // constructor
 RGBAImage::RGBAImage()
@@ -85,6 +87,30 @@ bool RGBAImage::Resize(long Width, long Height)
     // done
     return true;
     } // Resize()
+
+void RGBAImage::setPixel(Homogeneous4 point, Matrix4 transformationMatrix, RGBAValue colour) {
+    Homogeneous4 transformedPoint = transformationMatrix * point;
+
+    // Clipping
+    if (-transformedPoint.w > transformedPoint.x || transformedPoint.x > transformedPoint.w ||
+        -transformedPoint.w > transformedPoint.y || transformedPoint.y > transformedPoint.w ||
+        -transformedPoint.w > transformedPoint.z || transformedPoint.z > transformedPoint.w ||
+        transformedPoint.w < 0.0f)
+        return;
+
+    // Perspective divide
+    Homogeneous4 ndcs(transformedPoint.Point());
+
+    // Viewport transformation
+    int screenCoordx = (ndcs.x + 1) / 2 * width;
+    int screenCoordy = (ndcs.y + 1) / 2 * height;
+    int screenCoordz = ndcs.z;
+            
+    // Bounds check
+    if (screenCoordx >= 0 && screenCoordx < width && screenCoordy >= 0 && screenCoordy < height) {
+        (*this)[screenCoordy][screenCoordx] = colour;
+    }
+}
 
 // indexing - retrieves the beginning of a line
 // array indexing will then retrieve an element

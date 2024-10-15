@@ -182,8 +182,6 @@ void BezierPatchRenderWidget::paintGL()
 
     if(renderParameters->verticesEnabled)
     {// UI control for showing vertices
-
-
         for(int i = 0; i < (*patchControlPoints).vertices.size(); i++)
         {
             // draw each vertex as a point
@@ -198,7 +196,7 @@ void BezierPatchRenderWidget::paintGL()
                 colour = RGBAValue(255.0f * 0.75, 255.0f * 0.75, 255.0f * 0.75, 255.0f);
             }
 
-            // Draw the 
+            // Draw the vertices at the given patch control points
             drawPoint(Point3(
                 (*patchControlPoints).vertices[(i/4)*4+(i%4)][0],
                 (*patchControlPoints).vertices[(i/4)*4+(i%4)][1],
@@ -230,32 +228,37 @@ void BezierPatchRenderWidget::paintGL()
     if(renderParameters->netEnabled)
     {// UI control for showing the Bezier control net
      // (control points connected with lines)
+
+        // Draw horizontal lines between control points
         for (int i = 0; i < 4; i++) {
             for (int j = 0; j < 3; j++) {
-                Point3 controlPoint1(
+                Point3 controlPoint1(                           // First control point
                     (*patchControlPoints).vertices[i*4+j][0],
                     (*patchControlPoints).vertices[i*4+j][1],
                     (*patchControlPoints).vertices[i*4+j][2]);
-                Point3 controlPoint2(
+                Point3 controlPoint2(                           // Second control point
                     (*patchControlPoints).vertices[i*4+j+1][0],
                     (*patchControlPoints).vertices[i*4+j+1][1],
                     (*patchControlPoints).vertices[i*4+j+1][2]);
                 
+                // Draw line between
                 drawLine(controlPoint1, controlPoint2, RGBAValue(0.0f, 255.0f, 0.0f, 255.0f));
             }
         }
 
+        // Draw the vertical lines between control points
         for (int i = 0; i < 4; i++) {
             for (int j = 0; j < 3; j++) {
-                Point3 controlPoint1(
+                Point3 controlPoint1(                            // First control point
                     (*patchControlPoints).vertices[i+j*4][0],
                     (*patchControlPoints).vertices[i+j*4][1],
                     (*patchControlPoints).vertices[i+j*4][2]);
-                Point3 controlPoint2(
+                Point3 controlPoint2(                            // Second control point
                     (*patchControlPoints).vertices[i+4+j*4][0],
                     (*patchControlPoints).vertices[i+4+j*4][1],
                     (*patchControlPoints).vertices[i+4+j*4][2]);
                 
+                // Draw line between
                 drawLine(controlPoint1, controlPoint2, RGBAValue(0.0f, 255.0f, 0.0f, 255.0f));
             }
         }
@@ -263,6 +266,7 @@ void BezierPatchRenderWidget::paintGL()
 
     if(renderParameters->bezierEnabled)
     {// UI control for showing the Bezier curve
+        // Get the control points in a variable with shorter name for ease of reading
         std::vector<Point3> controlPoints = renderParameters->patchControlPoints->vertices;
 
         for (float s = 0.0; s <= 1.0; s += 0.001)
@@ -279,7 +283,8 @@ void BezierPatchRenderWidget::paintGL()
             // Find final point using the previous 4 points as points for a final bezier curve with s parameter
             Homogeneous4 finalPoint = bezier(s, bezier1, bezier2, bezier3, bezier4);
 
-            setPixel(finalPoint, mvpMatrix, RGBAValue(255.0f * s, 255.0f / 2, 255.0f * t, 255.0f)); // Set pixel
+            // Set pixel at final point
+            frameBuffer.setPixel(finalPoint, mvpMatrix, RGBAValue(255.0f * s, 255.0f / 2, 255.0f * t, 255.0f));
                 // set the pixel for this parameter value using s, t for colour
             } // t parameter loop
         } // s parameter loop
@@ -309,55 +314,39 @@ Homogeneous4 BezierPatchRenderWidget::bezier(float parameter, Homogeneous4 contr
 }
 
 void BezierPatchRenderWidget::drawLine(Point3 start, Point3 end, RGBAValue colour) {
+    // Find difference between end and start point of line
     Vector3 difference = end - start;
     
+    // Loop over parameter t
     for (float t = 0.0f; t < 1.0f; t += 0.001f) {
-        Homogeneous4 pointOnLine(Point3(start + difference * t));
-        setPixel(pointOnLine, mvpMatrix, colour);
+        Homogeneous4 pointOnLine(Point3(start + difference * t)); // Find point travelled along line based on t and convert to Homogeneous 4 for transformation
+        frameBuffer.setPixel(pointOnLine, mvpMatrix, colour); // Set pixel at given point along line
     }
 }
 
 void BezierPatchRenderWidget::drawPoint(Point3 point, RGBAValue colour) {
+    // Form a translation matrix with the translation being the point we want to draw the vertex at
     Matrix4 translationMatrix = Matrix4();
     translationMatrix.SetTranslation(Vector3(point.x, point.y, point.z));
     
+    // Calculate the transformation matrix to convert world space coordinate to clip space
     Matrix4 pointMatrix = projectionMatrix * viewMatrix * translationMatrix;
     
     float radius = 0.1f;
 
+    // Loop over phi and theta to construct points in a spherical shape
     for (float phi = 0.0f; phi < 2.0f * PI; phi += PI / 30.0f) {
         for (float theta = 0.0f; theta < 2.0f * PI; theta += PI / 30.0f) {
+            // Homogeneous point of a single point of the sphere based near the origin
+            // (will be translated to the point on the net when transformed by pointMatrix)
             Homogeneous4 point(Point3(
-                radius * std::cos(phi) * std::cos(theta), 
+                radius * std::cos(phi) * std::cos(theta),  
                 radius * std::cos(phi) * std::sin(theta),
                 radius * std::sin(phi)));
             
-            setPixel(point, pointMatrix, colour);
+            // Set pixel of sphere points
+            frameBuffer.setPixel(point, pointMatrix, colour);
         }
-    }
-}
-
-void BezierPatchRenderWidget::setPixel(Homogeneous4 point, Matrix4 transformationMatrix, RGBAValue colour) {
-    Homogeneous4 transformedPoint = transformationMatrix * point;
-
-    // Clipping
-    if (-transformedPoint.w > transformedPoint.x || transformedPoint.x > transformedPoint.w ||
-        -transformedPoint.w > transformedPoint.y || transformedPoint.y > transformedPoint.w ||
-        -transformedPoint.w > transformedPoint.z || transformedPoint.z > transformedPoint.w ||
-        transformedPoint.w < 0.0f)
-        return;
-
-    // Perspective divide
-    Homogeneous4 ndcs(transformedPoint.Point());
-
-    // Viewport transformation
-    int screenCoordx = (ndcs.x + 1) / 2 * frameBuffer.width;
-    int screenCoordy = (ndcs.y + 1) / 2 * frameBuffer.height;
-    int screenCoordz = ndcs.z;
-            
-    // Bounds check
-    if (screenCoordx >= 0 && screenCoordx < frameBuffer.width && screenCoordy >= 0 && screenCoordy < frameBuffer.height) {
-        frameBuffer[screenCoordy][screenCoordx] = colour;
     }
 }
 
