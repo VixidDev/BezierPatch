@@ -14,7 +14,7 @@ EQ            = =
 
 CC            = gcc
 CXX           = g++
-DEFINES       = -DQT_NO_DEBUG -DQT_OPENGLWIDGETS_LIB -DQT_WIDGETS_LIB -DQT_OPENGL_LIB -DQT_GUI_LIB -DQT_CORE_LIB
+DEFINES       = -DQT_NO_DEBUG -DQT_OPENGLWIDGETS_LIB -DQT_WIDGETS_LIB -DQT_OPENGL_LIB -DQT_GUI_LIB -DQT_CORE_LIB -D_GLIBCXX_PARALLEL
 CFLAGS        = -pipe -O2 -Wall -Wextra -D_REENTRANT $(DEFINES)
 CXXFLAGS      = -pipe -fopenmp -Wall -O2 -Wall -Wextra -D_REENTRANT $(DEFINES)
 INCPATH       = -I. -I. -I/usr/include/qt6 -I/usr/include/qt6/QtOpenGLWidgets -I/usr/include/qt6/QtWidgets -I/usr/include/qt6/QtOpenGL -I/usr/include/qt6/QtGui -I/usr/include/qt6/QtCore -I. -I/usr/lib64/qt6/mkspecs/linux-g++

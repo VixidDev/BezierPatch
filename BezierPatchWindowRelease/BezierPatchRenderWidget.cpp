@@ -185,10 +185,10 @@ void BezierPatchRenderWidget::paintGL()
     // Model-view-projection matrix
     mvpMatrix.SetIdentity();
     mvpMatrix = projectionMatrix * viewMatrix; // Combine projection and view matrix for transforming to clip space
-    
+
     if(renderParameters->verticesEnabled)
     {// UI control for showing vertices
-        #pragma omp parallel for
+        //#pragma omp parallel for
         for(int i = 0; i < (*patchControlPoints).vertices.size(); i++)
         {
             // draw each vertex as a point
@@ -216,14 +216,14 @@ void BezierPatchRenderWidget::paintGL()
     {// UI control for showing axis-aligned planes
 
         // Planes are axis aligned grids made up of lines
-        #pragma omp parallel for
+        //#pragma omp parallel for
         for (int i = -5; i <= 5; i += 2) {
             drawLine(Point3(-5, 0, i), Point3(5, 0, i), RGBAValue(255.0f / 4, 0.0f, 255.0f / 4, 255.0f)); // x plane horizontal
             drawLine(Point3(i, 0, -5), Point3(i, 0, 5), RGBAValue(255.0f / 4, 0.0f, 255.0f / 4, 255.0f)); // x plane vertical
             drawLine(Point3(0, i, -5), Point3(0, i, 5), RGBAValue(0.0f, 255.0f / 4, 255.0f / 4, 255.0f)); // z plane horizontal
             drawLine(Point3(0, -5, i), Point3(0, 5, i), RGBAValue(0.0f, 255.0f / 4, 255.0f / 4, 255.0f)); // z plane vertical
         }
-        #pragma omp parallel for
+        //#pragma omp parallel for
         for (int i = -5; i <= 5; i++) {
             drawLine(Point3(-5, i, 0), Point3(5, i, 0), RGBAValue(255.0f / 4, 255.0f / 4, 0.0f, 255.0f)); // y plane horizontal
             drawLine(Point3(i, -5, 0), Point3(i, 5, 0), RGBAValue(255.0f / 4, 255.0f / 4, 0.0f, 255.0f)); // y plane vertical
@@ -240,7 +240,7 @@ void BezierPatchRenderWidget::paintGL()
      // (control points connected with lines)
 
         // Draw horizontal lines between control points
-        #pragma omp parallel for
+        //#pragma omp parallel for
         for (int i = 0; i < 4; i++) {
             for (int j = 0; j < 3; j++) {
                 Point3 controlPoint1(                           // First control point
@@ -258,7 +258,7 @@ void BezierPatchRenderWidget::paintGL()
         }
 
         // Draw the vertical lines between control points
-        #pragma omp parallel for
+        //#pragma omp parallel for
         for (int i = 0; i < 4; i++) {
             for (int j = 0; j < 3; j++) {
                 Point3 controlPoint1(                            // First control point
@@ -281,7 +281,7 @@ void BezierPatchRenderWidget::paintGL()
         // Get the control points in a variable with shorter name for ease of reading
         std::vector<Point3> controlPoints = renderParameters->patchControlPoints->vertices;
 
-        #pragma omp parallel for
+        //#pragma omp parallel for
         for (int s = 0; s <= 1000; s++)
         {// s parameter loop
             for (float t = 0.0; t <= 1.0; t += 0.001)
@@ -296,10 +296,10 @@ void BezierPatchRenderWidget::paintGL()
             // Find final point using the previous 4 points as points for a final bezier curve with s parameter
             Homogeneous4 finalPoint = bezier((float)s / 1000.0f, bezier1, bezier2, bezier3, bezier4);
 
-            #pragma omp critical 
-            {
-                fragments.emplace_back(Fragment{finalPoint, mvpMatrix, RGBAValue(255.0f * (float)s / 1000.0f, 255.0f / 2, 255.0f * t, 255.0f)});
-            }
+            // Transform the point to screen space
+            Point3 screenPoint = transformPoint(finalPoint);
+
+            fragments.emplace_back(Fragment{screenPoint, RGBAValue(255.0f * (float)s / 1000.0f, 255.0f / 2, 255.0f * t, 255.0f)});
 
             // Set pixel at final point
             //frameBuffer.setPixel(finalPoint, mvpMatrix, RGBAValue(255.0f * (float)s / 1000.0f, 255.0f / 2, 255.0f * t, 255.0f));
@@ -308,43 +308,64 @@ void BezierPatchRenderWidget::paintGL()
         } // s parameter loop
     }
 
-
     struct {
         bool operator()(Fragment left, Fragment right) const {
-            if (left.point.y < right.point.y) return true;
-            if (left.point.y > right.point.y) return false;
-            if (left.point.x < right.point.x) return true;
-            if (left.point.x > right.point.x) return false;
+            if ((int)left.point.y > (int)right.point.y) return true;
+            if ((int)left.point.y < (int)right.point.y) return false;
+            if ((int)left.point.x < (int)right.point.x) return true;
+            if ((int)left.point.x > (int)right.point.x) return false;
             if (left.point.z > right.point.z) return true;
             if (left.point.z < right.point.z) return false;
             return false; 
         }
     } lessFunctor;
-
     
     auto sortStart = std::chrono::steady_clock::now();
 
-    std::sort(fragments.begin(), fragments.end(), lessFunctor);
+    if (!fragments.empty())
+        std::sort(fragments.begin(), fragments.end(), lessFunctor);
 
     auto sortEnd = std::chrono::steady_clock::now();
     auto sortTimeTaken = std::chrono::duration_cast<std::chrono::microseconds>(sortEnd - sortStart);
-    std::cout << "Sort time taken: " << sortTimeTaken.count() / 1000000.0f << " seconds." << std::endl;
-
+    //std::cout << "Sort time taken: " << sortTimeTaken.count() / 1000000.0f << " seconds." << std::endl;
 
     for (int i = 0; i < fragments.size() - 1; i++) {
-        frameBuffer.setPixel(fragments.at(i).point, fragments.at(i).transformationMatrix, fragments.at(i).colour);
+        if (!fragments.empty())
+            frameBuffer.setPixel(fragments.at(i).point, fragments.at(i).colour);
     }
 
     fragments.clear();
 
     auto end = std::chrono::steady_clock::now();
     auto timeTaken = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    std::cout << "Time taken: " << timeTaken.count() / 1000000.0f << " seconds." << std::endl;
+    //std::cout << "Time taken: " << timeTaken.count() / 1000000.0f << " seconds." << std::endl;
 
     // Put the custom framebufer on the screen to display the image
     glDrawPixels(frameBuffer.width, frameBuffer.height, GL_RGBA, GL_UNSIGNED_BYTE, frameBuffer.block);
 
 } // BezierPatchRenderWidget::paintGL()
+
+Point3 BezierPatchRenderWidget::transformPoint(Homogeneous4 point) {
+    // Transform the point from world space to clip space
+    Homogeneous4 transformedPoint = mvpMatrix * point;
+
+    // Clipping
+    if (-transformedPoint.w > transformedPoint.x || transformedPoint.x > transformedPoint.w ||
+        -transformedPoint.w > transformedPoint.y || transformedPoint.y > transformedPoint.w ||
+        -transformedPoint.w > transformedPoint.z || transformedPoint.z > transformedPoint.w ||
+        transformedPoint.w < 0.0f)
+        return Point3(-1, -1, -1); // return an invalid point so when it gets to setPixel it will be discarded
+
+    // Perspective divide
+    Homogeneous4 ndcs(transformedPoint.Point());
+
+    // Viewport transformation
+    float screenCoordx = (ndcs.x + 1) / 2 * frameBuffer.width;
+    float screenCoordy = (ndcs.y + 1) / 2 * frameBuffer.height;
+    float screenCoordz = ndcs.z;
+
+    return Point3(screenCoordx, screenCoordy, screenCoordz); // Return the screen point
+}
 
 Homogeneous4 BezierPatchRenderWidget::bezier(float parameter, Homogeneous4 controlPoint1, Homogeneous4 controlPoint2, Homogeneous4 controlPoint3, Homogeneous4 controlPoint4) {
     // Precompute t coefficients for terms
@@ -370,22 +391,21 @@ void BezierPatchRenderWidget::drawLine(Point3 start, Point3 end, RGBAValue colou
     
     // Loop over parameter t
     for (float t = 0.0f; t < 1.0f; t += 0.001f) {
-        Homogeneous4 pointOnLine(Point3(start + difference * t)); // Find point travelled along line based on t and convert to Homogeneous 4 for transformation
-        #pragma omp critical 
-        {
-            fragments.emplace_back(Fragment{pointOnLine, mvpMatrix, colour});
-        }
+        // Find point travelled along line based on t and convert to Homogeneous 4 for transformation
+        Homogeneous4 pointOnLine(Point3(start + difference * t));
+
+        // Transform the point to screen space
+        Point3 screenPoint = transformPoint(pointOnLine);
+
+        fragments.emplace_back(Fragment{screenPoint, colour});
         //frameBuffer.setPixel(pointOnLine, mvpMatrix, colour); // Set pixel at given point along line
     }
 }
 
 void BezierPatchRenderWidget::drawPoint(Point3 point, RGBAValue colour) {
     // Form a translation matrix with the translation being the point we want to draw the vertex at
-    Matrix4 translationMatrix = Matrix4();
+    Matrix4 translationMatrix;
     translationMatrix.SetTranslation(Vector3(point.x, point.y, point.z));
-    
-    // Calculate the transformation matrix to convert world space coordinate to clip space
-    Matrix4 pointMatrix = projectionMatrix * viewMatrix * translationMatrix;
     
     float radius = 0.1f;
 
@@ -393,19 +413,22 @@ void BezierPatchRenderWidget::drawPoint(Point3 point, RGBAValue colour) {
     for (float phi = 0.0f; phi < 2.0f * PI; phi += PI / 30.0f) {
         for (float theta = 0.0f; theta < 2.0f * PI; theta += PI / 30.0f) {
             // Homogeneous point of a single point of the sphere based near the origin
-            // (will be translated to the point on the net when transformed by pointMatrix)
+            // (will then be translated to the point on the net)
             Homogeneous4 point(Point3(
                 radius * std::cos(phi) * std::cos(theta),  
                 radius * std::cos(phi) * std::sin(theta),
                 radius * std::sin(phi)));
 
-            #pragma omp critical 
-            {
-                fragments.emplace_back(Fragment{point, pointMatrix, colour});
-            }
+            // Translate the point to the coordinates where the vertex should be drawn on the net
+            Homogeneous4 translatedPoint = translationMatrix * point; 
+
+            // Transform the point to screen space
+            Point3 screenPoint = transformPoint(translatedPoint);
+
+            fragments.emplace_back(Fragment{screenPoint, colour});
             
             // Set pixel of sphere points
-            //frameBuffer.setPixel(point, pointMatrix, colour);
+            //frameBuffer.setPixel(translatedPoint, mvpMatrix, colour);
         }
     }
 }
