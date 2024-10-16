@@ -187,6 +187,7 @@ void BezierPatchRenderWidget::paintGL()
     mvpMatrix = projectionMatrix * viewMatrix; // Combine projection and view matrix for transforming to clip space
 
     head = 0;
+    prevHead = 0;
 
     if(renderParameters->verticesEnabled)
     {// UI control for showing vertices
@@ -232,58 +233,58 @@ void BezierPatchRenderWidget::paintGL()
 
         head = prevHead;
 
-        // #pragma omp parallel for
-        // for (int i = -5; i <= 5; i++) {
-        //     drawDenseLine(Point3(-5, i, 0), Point3(5, i, 0), RGBAValue(255.0f / 4, 255.0f / 4, 0.0f, 255.0f), i + 5, 0); // y plane horizontal
-        //     drawDenseLine(Point3(i, -5, 0), Point3(i, 5, 0), RGBAValue(255.0f / 4, 255.0f / 4, 0.0f, 255.0f), i + 5, 1); // y plane vertical
-        // }
+        #pragma omp parallel for
+        for (int i = -5; i <= 5; i++) {
+            drawDenseLine(Point3(-5, i, 0), Point3(5, i, 0), RGBAValue(255.0f / 4, 255.0f / 4, 0.0f, 255.0f), i + 5, 0); // y plane horizontal
+            drawDenseLine(Point3(i, -5, 0), Point3(i, 5, 0), RGBAValue(255.0f / 4, 255.0f / 4, 0.0f, 255.0f), i + 5, 1); // y plane vertical
+        }
 
         // Refer to RenderWidget.cpp for the precise colours.
 
     }// UI control for showing axis-aligned planes
 
-    
+    head = prevHead;
 
-    // if(renderParameters->netEnabled)
-    // {// UI control for showing the Bezier control net
-    //  // (control points connected with lines)
+    if(renderParameters->netEnabled)
+    {// UI control for showing the Bezier control net
+     // (control points connected with lines)
 
-    //     // Draw horizontal lines between control points
-    //     //#pragma omp parallel for
-    //     for (int i = 0; i < 4; i++) {
-    //         for (int j = 0; j < 3; j++) {
-    //             Point3 controlPoint1(                           // First control point
-    //                 (*patchControlPoints).vertices[i*4+j][0],
-    //                 (*patchControlPoints).vertices[i*4+j][1],
-    //                 (*patchControlPoints).vertices[i*4+j][2]);
-    //             Point3 controlPoint2(                           // Second control point
-    //                 (*patchControlPoints).vertices[i*4+j+1][0],
-    //                 (*patchControlPoints).vertices[i*4+j+1][1],
-    //                 (*patchControlPoints).vertices[i*4+j+1][2]);
+        // Draw horizontal lines between control points
+        //#pragma omp parallel for
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 3; j++) {
+                Point3 controlPoint1(                           // First control point
+                    (*patchControlPoints).vertices[i*4+j][0],
+                    (*patchControlPoints).vertices[i*4+j][1],
+                    (*patchControlPoints).vertices[i*4+j][2]);
+                Point3 controlPoint2(                           // Second control point
+                    (*patchControlPoints).vertices[i*4+j+1][0],
+                    (*patchControlPoints).vertices[i*4+j+1][1],
+                    (*patchControlPoints).vertices[i*4+j+1][2]);
                 
-    //             // Draw line between
-    //             drawLine(controlPoint1, controlPoint2, RGBAValue(0.0f, 255.0f, 0.0f, 255.0f));
-    //         }
-    //     }
+                // Draw line between
+                drawLine(controlPoint1, controlPoint2, RGBAValue(0.0f, 255.0f, 0.0f, 255.0f));
+            }
+        }
 
-    //     // Draw the vertical lines between control points
-    //     //#pragma omp parallel for
-    //     for (int i = 0; i < 4; i++) {
-    //         for (int j = 0; j < 3; j++) {
-    //             Point3 controlPoint1(                            // First control point
-    //                 (*patchControlPoints).vertices[i+j*4][0],
-    //                 (*patchControlPoints).vertices[i+j*4][1],
-    //                 (*patchControlPoints).vertices[i+j*4][2]);
-    //             Point3 controlPoint2(                            // Second control point
-    //                 (*patchControlPoints).vertices[i+4+j*4][0],
-    //                 (*patchControlPoints).vertices[i+4+j*4][1],
-    //                 (*patchControlPoints).vertices[i+4+j*4][2]);
+        // Draw the vertical lines between control points
+        //#pragma omp parallel for
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 3; j++) {
+                Point3 controlPoint1(                            // First control point
+                    (*patchControlPoints).vertices[i+j*4][0],
+                    (*patchControlPoints).vertices[i+j*4][1],
+                    (*patchControlPoints).vertices[i+j*4][2]);
+                Point3 controlPoint2(                            // Second control point
+                    (*patchControlPoints).vertices[i+4+j*4][0],
+                    (*patchControlPoints).vertices[i+4+j*4][1],
+                    (*patchControlPoints).vertices[i+4+j*4][2]);
                 
-    //             // Draw line between
-    //             drawLine(controlPoint1, controlPoint2, RGBAValue(0.0f, 255.0f, 0.0f, 255.0f));
-    //         }
-    //     }
-    // }// UI control for showing the Bezier control net
+                // Draw line between
+                drawLine(controlPoint1, controlPoint2, RGBAValue(0.0f, 255.0f, 0.0f, 255.0f));
+            }
+        }
+    }// UI control for showing the Bezier control net
 
     if(renderParameters->bezierEnabled)
     {// UI control for showing the Bezier curve
@@ -398,6 +399,30 @@ Homogeneous4 BezierPatchRenderWidget::bezier(float parameter, Homogeneous4 contr
 
     // Return sum of terms
     return term1 + term2 + term3 + term4;
+}
+
+void BezierPatchRenderWidget::drawLine(Point3 start, Point3 end, RGBAValue colour) {
+    // Find difference between end and start point of line
+    Vector3 difference = end - start;
+    
+    // Loop over parameter t
+    for (float t = 0.0f; t < 1.0f; t += 0.001f) {
+        // Find point travelled along line based on t and convert to Homogeneous 4 for transformation
+        Homogeneous4 pointOnLine(Point3(start + difference * t));
+
+        // Transform the point to screen space
+        Point3 screenPoint = transformPoint(pointOnLine);
+
+        //fragments.emplace_back(Fragment{screenPoint, colour});
+        
+        int index = head + ();
+        fragments[index] = Fragment{screenPoint, colour};
+
+        #pragma omp atomic
+        prevHead++;
+
+        //frameBuffer.setPixel(screenPoint, colour); // Set pixel at given point along line
+    }
 }
 
 void BezierPatchRenderWidget::drawSparseLine(Point3 start, Point3 end, RGBAValue colour, int i, int lineNum) {
