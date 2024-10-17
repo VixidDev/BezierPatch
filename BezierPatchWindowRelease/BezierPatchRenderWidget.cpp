@@ -189,7 +189,7 @@ void BezierPatchRenderWidget::paintGL()
     {// UI control for showing vertices
 
         // If vertices are enabled, reserve memory to fragments to the number
-        // of fragments we would generate to reduce automatic memory reallocation
+        // of fragments we would generate to reduce automatic memory reallocation.
         fragments.reserve(1048);
 
         // In the same vein as the reasoning stated for why the drawLine loops are not
@@ -268,6 +268,8 @@ void BezierPatchRenderWidget::paintGL()
         // of fragments we would generate to reduce automatic memory reallocation
         fragments.reserve(fragments.size() + 24024);
 
+        // Reasoning for not parallelising these loops is as stated previously in the planes loop,
+        // more so with these since even fewer points are being calculated
         for (int i = 0; i < 4; i++) {
             for (int j = 0; j < 3; j++) {
                 // Draw horizontal lines between control points
