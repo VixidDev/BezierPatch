@@ -100,16 +100,6 @@ void BezierPatchRenderWidget::paintGL()
     // Get start time of frame
     auto start = std::chrono::steady_clock::now();
 
-    // Resize the fragments vector to the max number of fragments
-    // we will end up producing if all toggles are enabled.
-    // This is needed so we can index into the fragments vector using the [] operator
-    // as resize() resizes the container and default allocates every location
-    fragments.resize(1151627);
-
-    auto endResize = std::chrono::steady_clock::now();
-    auto timeTakenResize = std::chrono::duration_cast<std::chrono::microseconds>(endResize - start);
-    std::cout << "Resize time taken: " << timeTakenResize.count() / 1000000.0f << " seconds." << std::endl;
-
     // clear the (non-OpenGL) buffer where we will set pixels to:
     frameBuffer.clear(renderParameters->theClearColor);
 
@@ -193,17 +183,20 @@ void BezierPatchRenderWidget::paintGL()
     mvpMatrix.SetIdentity();
     mvpMatrix = projectionMatrix * viewMatrix; // Combine projection and view matrix for transforming to clip space
 
-    // Set head and prevHead variables to 0
-    // These are needed to keep track of where we finish writing to
-    // after a parallel loop
-    head = 0;
-    prevHead = 0;
-
     auto startVertices = std::chrono::steady_clock::now();
 
     if(renderParameters->verticesEnabled)
     {// UI control for showing vertices
-        //#pragma omp parallel for
+
+        // If vertices are enabled, reserve memory to fragments to the number
+        // of fragments we would generate to reduce automatic memory reallocation
+        fragments.reserve(1048);
+
+        // In the same vein as the reasoning stated for why the drawLine loops are not
+        // parallelised, is the same for this one. Since we are only iterating over 16 vertices,
+        // each of which call drawPoint which iterates over 100 pixels, only 1600 pixels
+        // are being computed, which is not in region in which the cost of invoking #pragma omp parallel for
+        // would be worth the performance gained by parallelising this loop.
         for(int i = 0; i < (*patchControlPoints).vertices.size(); i++)
         {
             // draw each vertex as a point
@@ -223,42 +216,38 @@ void BezierPatchRenderWidget::paintGL()
                 (*patchControlPoints).vertices[(i/4)*4+(i%4)][0],
                 (*patchControlPoints).vertices[(i/4)*4+(i%4)][1],
                 (*patchControlPoints).vertices[(i/4)*4+(i%4)][2]),
-                colour, i);
+                colour);
         }
     }// UI control for showing vertices
 
     auto endVertices = std::chrono::steady_clock::now();
     auto timeTakenVertices = std::chrono::duration_cast<std::chrono::microseconds>(endVertices - startVertices);
-    std::cout << "Vertices time taken: " << timeTakenVertices.count() / 1000000.0f << " seconds." << std::endl;
-
-    head = prevHead;
+    //std::cout << "Vertices time taken: " << timeTakenVertices.count() / 1000000.0f << " seconds." << std::endl;
 
     auto startPlanes = std::chrono::steady_clock::now();
 
     if(renderParameters->planesEnabled)
     {// UI control for showing axis-aligned planes
 
+        // If planes are enabled reserve memory to fragments to current size plus the number
+        // of fragments we would generate to reduce automatic memory reallocation
+        fragments.reserve(fragments.size() + 46046);
+
         // Planes are axis aligned grids made up of lines
 
-        #pragma omp parallel for
+        // I don't parallelise the loops that call drawLine, since the point at which
+        // line calculation starts being the bottleneck (i.e. greater cost than the overhead of openmp threads)
+        // is at 1 million loop iterations, however we are only doing 1000, as such it is counter intuitive to
+        // parallelise the loops when the cost of overhead + parallel calculation is higher than just serial calculation in this case. 
+        for (int i = -5; i <= 5; i+=2) {
+            drawLine(Point3(-5, 0, i), Point3(5, 0, i), RGBAValue(255.0f / 4, 0.0f, 255.0f / 4, 255.0f)); // x plane horizontal
+            drawLine(Point3(i, 0, -5), Point3(i, 0, 5), RGBAValue(255.0f / 4, 0.0f, 255.0f / 4, 255.0f)); // x plane vertical
+            drawLine(Point3(0, i, -5), Point3(0, i, 5), RGBAValue(0.0f, 255.0f / 4, 255.0f / 4, 255.0f)); // z plane horizontal
+            drawLine(Point3(0, -5, i), Point3(0, 5, i), RGBAValue(0.0f, 255.0f / 4, 255.0f / 4, 255.0f)); // z plane vertical
+        }
         for (int i = -5; i <= 5; i++) {
-            // Only the y plane needs all 11 lines, x and z only need 6.
-            // By doing the below line we force x and z planes to only draw lines
-            // every 2 steps (-5, -3, -1... etc.), however this does mean we draw
-            // each line twice for the x and z planes, but this is needed to make the
-            // for loop work in parallel, as splitting the for loop into 3 causes
-            // the overall speed of drawing the planes to slow down, probably due to the overhead
-            // of creating and destroying threads for each plane.
-            int j = (i % 2 == 0) ? i - 1 : i;
-
-            drawLine(Point3(-5, 0, j), Point3(5, 0, j), RGBAValue(255.0f / 4, 0.0f, 255.0f / 4, 255.0f), i + 5, 6000, 0); // x plane horizontal
-            drawLine(Point3(j, 0, -5), Point3(j, 0, 5), RGBAValue(255.0f / 4, 0.0f, 255.0f / 4, 255.0f), i + 5, 6000, 1); // x plane vertical
-            
-            drawLine(Point3(0, j, -5), Point3(0, j, 5), RGBAValue(0.0f, 255.0f / 4, 255.0f / 4, 255.0f), i + 5, 6000, 2); // z plane horizontal
-            drawLine(Point3(0, -5, j), Point3(0, 5, j), RGBAValue(0.0f, 255.0f / 4, 255.0f / 4, 255.0f), i + 5, 6000, 3); // z plane vertical
-
-            drawLine(Point3(-5, i, 0), Point3(5, i, 0), RGBAValue(255.0f / 4, 255.0f / 4, 0.0f, 255.0f), i + 5, 6000, 4); // y plane horizontal
-            drawLine(Point3(i, -5, 0), Point3(i, 5, 0), RGBAValue(255.0f / 4, 255.0f / 4, 0.0f, 255.0f), i + 5, 6000, 5); // y plane vertical
+            drawLine(Point3(-5, i, 0), Point3(5, i, 0), RGBAValue(255.0f / 4, 255.0f / 4, 0.0f, 255.0f)); // y plane horizontal
+            drawLine(Point3(i, -5, 0), Point3(i, 5, 0), RGBAValue(255.0f / 4, 255.0f / 4, 0.0f, 255.0f)); // y plane vertical
         }
 
         // Refer to RenderWidget.cpp for the precise colours.
@@ -267,9 +256,7 @@ void BezierPatchRenderWidget::paintGL()
 
     auto endPlanes = std::chrono::steady_clock::now();
     auto timeTakenPlanes = std::chrono::duration_cast<std::chrono::microseconds>(endPlanes - startPlanes);
-    std::cout << "Planes time taken: " << timeTakenPlanes.count() / 1000000.0f << " seconds." << std::endl;
-
-    head = prevHead;
+    //std::cout << "Planes time taken: " << timeTakenPlanes.count() / 1000000.0f << " seconds." << std::endl;
 
     auto startNet = std::chrono::steady_clock::now();
 
@@ -277,7 +264,10 @@ void BezierPatchRenderWidget::paintGL()
     {// UI control for showing the Bezier control net
      // (control points connected with lines)
 
-        //#pragma omp parallel for
+        // If net is enabled reserve memory to fragments to current size plus the number
+        // of fragments we would generate to reduce automatic memory reallocation
+        fragments.reserve(fragments.size() + 24024);
+
         for (int i = 0; i < 4; i++) {
             for (int j = 0; j < 3; j++) {
                 // Draw horizontal lines between control points
@@ -291,7 +281,7 @@ void BezierPatchRenderWidget::paintGL()
                     (*patchControlPoints).vertices[i*4+j+1][2]);
                 
                 // Draw net line between
-                drawLine(horzControlPoint1, horzControlPoint2, RGBAValue(0.0f, 255.0f, 0.0f, 255.0f), (i * 3) + j, 2000, 0);
+                drawLine(horzControlPoint1, horzControlPoint2, RGBAValue(0.0f, 255.0f, 0.0f, 255.0f));
 
                 // Draw the vertical lines between control points
                 Point3 vertControlPoint1(                            // First control point
@@ -304,7 +294,7 @@ void BezierPatchRenderWidget::paintGL()
                     (*patchControlPoints).vertices[i+4+j*4][2]);
                 
                 // Draw net line between
-                drawLine(vertControlPoint1, vertControlPoint2, RGBAValue(0.0f, 255.0f, 0.0f, 255.0f), (i * 3) + j, 2000, 1);
+                drawLine(vertControlPoint1, vertControlPoint2, RGBAValue(0.0f, 255.0f, 0.0f, 255.0f));
             }
         }
 
@@ -312,9 +302,7 @@ void BezierPatchRenderWidget::paintGL()
 
     auto endNet = std::chrono::steady_clock::now();
     auto timeTakenNet = std::chrono::duration_cast<std::chrono::microseconds>(endNet - startNet);
-    std::cout << "Net time taken: " << timeTakenNet.count() / 1000000.0f << " seconds." << std::endl;
-
-    head = prevHead;
+    //std::cout << "Net time taken: " << timeTakenNet.count() / 1000000.0f << " seconds." << std::endl;
 
     auto startBezier = std::chrono::steady_clock::now();
 
@@ -322,6 +310,14 @@ void BezierPatchRenderWidget::paintGL()
     {// UI control for showing the Bezier curve
         // Get the control points in a variable with shorter name for ease of reading
         std::vector<Point3> controlPoints = renderParameters->patchControlPoints->vertices;
+
+        head = fragments.size();
+        // If bezier is enabled resize fragments to current size plus the number
+        // of fragments we would generate to reduce automatic memory reallocation.
+        // I use resize specifically here as resize not only reserves memory but also
+        // default constructs elements in the new space so accessing positions with the
+        // [] operator is valid
+        fragments.resize(fragments.size() + 1002001);
 
         #pragma omp parallel for
         for (int s = 0; s <= 1000; s++) // for loop parameter needs to be int for omp (remember to float cast and divide later)
@@ -341,37 +337,18 @@ void BezierPatchRenderWidget::paintGL()
             // Transform the point to screen space
             Point3 screenPoint = transformPoint(finalPoint);
 
-            //fragments.emplace_back(Fragment{screenPoint, RGBAValue(255.0f * (float)s / 1000.0f, 255.0f / 2, 255.0f * t, 255.0f)});
-
-            // Calculate index for each fragment
+            // Calculate index for each fragment to get a unique memory location
+            // so no two threads try to write to the same index and cause a write collision
             int index = head + (s * 1001 + (t / 0.001f));
             fragments[index] = Fragment{screenPoint, RGBAValue(255.0f * (float)s / 1000.0f, 255.0f / 2, 255.0f * t, 255.0f)};
 
-            // Set pixel at final point
-            //frameBuffer.setPixel(screenPoint, RGBAValue(255.0f * (float)s / 1000.0f, 255.0f / 2, 255.0f * t, 255.0f));
             } // t parameter loop
         } // s parameter loop
     }
 
-    std::cout << "prevHead: " << prevHead << std::endl;
-
     auto endBezier = std::chrono::steady_clock::now();
     auto timeTakenBezier = std::chrono::duration_cast<std::chrono::microseconds>(endBezier - startBezier);
-    std::cout << "Bezier time taken: " << timeTakenBezier.count() / 1000000.0f << " seconds." << std::endl;
-
-    // Functor to compare two fragments and sort them first by x and y position and then by depth (z)
-    // So when we draw each fragment we are drawing them from back to front (Painter's algorithm)
-    struct {
-        bool operator()(Fragment left, Fragment right) const {
-            if ((int)left.point.y > (int)right.point.y) return true;
-            if ((int)left.point.y < (int)right.point.y) return false;
-            if ((int)left.point.x < (int)right.point.x) return true;
-            if ((int)left.point.x > (int)right.point.x) return false;
-            if (left.point.z > right.point.z) return true;
-            if (left.point.z < right.point.z) return false;
-            return false;
-        }
-    } lessFunctor;
+    //std::cout << "Bezier time taken: " << timeTakenBezier.count() / 1000000.0f << " seconds." << std::endl;
     
     auto sortStart = std::chrono::steady_clock::now();
 
@@ -380,20 +357,20 @@ void BezierPatchRenderWidget::paintGL()
 
     auto sortEnd = std::chrono::steady_clock::now();
     auto sortTimeTaken = std::chrono::duration_cast<std::chrono::microseconds>(sortEnd - sortStart);
-    std::cout << "Sort time taken: " << sortTimeTaken.count() / 1000000.0f << " seconds." << std::endl;
+    //std::cout << "Sort time taken: " << sortTimeTaken.count() / 1000000.0f << " seconds." << std::endl;
 
     auto startDraw = std::chrono::steady_clock::now();
 
     // Draw every fragment, will be ordered so multiple pixels at same location will be drawn back to front
-    //#pragma omp parallel for
-    for (int i = 0; i < fragments.size() - 1; i++) {
-        if (!fragments.empty())
+    if (!fragments.empty()) { // fragments will be empty when all toggles are off, so we need to check before iterating over
+        for (int i = 0; i < fragments.size() - 1; i++) {
             frameBuffer.setPixel(fragments.at(i).point, fragments.at(i).colour);
+        }
     }
 
     auto endDraw = std::chrono::steady_clock::now();
     auto timeTakenDraw = std::chrono::duration_cast<std::chrono::microseconds>(endDraw - startDraw);
-    std::cout << "Draw time taken: " << timeTakenDraw.count() / 1000000.0f << " seconds." << std::endl;
+    //std::cout << "Draw time taken: " << timeTakenDraw.count() / 1000000.0f << " seconds." << std::endl;
 
     fragments.clear(); // Clear fragments so we don't get artifacts next frame
 
@@ -419,10 +396,10 @@ Point3 BezierPatchRenderWidget::transformPoint(Homogeneous4 point) {
         transformedPoint.w < 0.0f)
         return Point3(-1, -1, -1); // return an invalid point so when it gets to setPixel it will be discarded
 
-    // Perspective divide
+    // Perspective divide (clip space to normalised device space)
     Point3 ndcs(transformedPoint.Point());
 
-    // Viewport transformation
+    // Viewport transformation (normalised device space to screen space)
     float screenCoordx = (ndcs.x + 1) / 2 * frameBuffer.width;
     float screenCoordy = (ndcs.y + 1) / 2 * frameBuffer.height;
     float screenCoordz = ndcs.z; // Keep z so we can do Painter's algorithm later
@@ -450,76 +427,42 @@ Homogeneous4 BezierPatchRenderWidget::bezier(float parameter, Homogeneous4 contr
 }
 
 // Function to draw a line given a start and end point.
-// iteration, iterationAmount and lineNum parameters used to help calculate when to insert each fragment calculated into the fragment vector,
-// these are needed in a parallel context as we need to write to a unique memory location for every fragment so no two threads
+// iteration, iterationAmount and lineNum parameters used to help calculate where to insert each fragment calculated into the fragment vector,
+// these are needed in a parallel context as we need to write to a unique memory location for every fragment so no two or more threads
 // ever write to the same memory location and cause a write collision
-void BezierPatchRenderWidget::drawLine(Point3 start, Point3 end, RGBAValue colour, int iteration, int iterationAmount, int lineNum) {
+void BezierPatchRenderWidget::drawLine(Point3 start, Point3 end, RGBAValue colour) {
     // Find difference between end and start point of line
     Vector3 difference = end - start;
     
     // Loop over parameter t
+    // I don't parallelise this loop, since this function gets called many times a frame, 
+    // the overhead of creating and destroying threads if this loop was parallelised slows 
+    // down the run time drastically, and for the amount we iterate over this loop, doing this loop in serial is quicker.
     for (float t = 0.0f; t < 1.0f; t += 0.001f) {
-        // Find point travelled along line based on t and convert to Homogeneous 4 for transformation
+        // Find point travelled along line based on t and convert to Homogeneous4 for transformation
         Homogeneous4 pointOnLine(Point3(start + difference * t));
 
         // Transform the point to screen space
         Point3 screenPoint = transformPoint(pointOnLine);
 
-        //fragments.emplace_back(Fragment{screenPoint, colour});
-        
-        // Using the iteration, iterationAmount and lineNum parameters calculate a unique memory location for the fragment
-        // iteration will be the iteration of the loop and iterationAmount will be the amount that is written to each iteration,
-        // this needs to be a constant and already known value, it is a parameter since a different loop could write a different
-        // amount each iteration (i.e. drawing 6 lines at once for the planes vs drawing 2 lines at once for the net)
-        // (head is the position in the vector the last parallel for loop wrote to)
-        int index = head + (iteration * iterationAmount + lineNum * 1000 + (t / 0.001f));
-        fragments[index] = Fragment{screenPoint, colour};
-
-        // Increment a variable atomically so we can update the head variable for the next parallel for loop
-        // (atomics are a type of critical region and incur a low overhead, but most compilers / hardware optimise this efficiently)
-        #pragma omp atomic
-        prevHead++;
-
-        //frameBuffer.setPixel(screenPoint, colour); // Set pixel at given point along line
+        fragments.emplace_back(Fragment{screenPoint, colour});
     }
 }
 
-// Function to draw a vertex as a point as a sphere for 3600 points
-// iteration parameter is again used to help calculate unique memory location for fragment insert
-void BezierPatchRenderWidget::drawPoint(Point3 point, RGBAValue colour, int iteration) {
-    // Form a translation matrix with the translation being the point we want to draw the vertex at
-    Matrix4 translationMatrix;
-    translationMatrix.SetTranslation(Vector3(point.x, point.y, point.z));
-    
-    float radius = 0.1f;
+// Function to draw a vertex as a point as a circle
+// (Has side effect of staying as a set size regardless of zoom factor)
+void BezierPatchRenderWidget::drawPoint(Point3 point, RGBAValue colour) {
+    Point3 screenPoint = transformPoint(Homogeneous4(point)); // Transform point to screen space
 
-    // Loop over phi and theta to construct points in a spherical shape
-    for (float phi = 0.0f; phi < 2.0f * PI; phi += PI / 30.0f) {
-        for (float theta = 0.0f; theta < 2.0f * PI; theta += PI / 30.0f) {
-            // Homogeneous point of a single point of the sphere based near the origin
-            // (will then be translated to the point on the net)
-            Homogeneous4 point(Point3(
-                radius * std::cos(phi) * std::cos(theta),  
-                radius * std::cos(phi) * std::sin(theta),
-                radius * std::sin(phi)));
-
-            // Translate the point to the coordinates where the vertex should be drawn on the net
-            Homogeneous4 translatedPoint = translationMatrix * point; 
-
-            // Transform the point to screen space
-            Point3 screenPoint = transformPoint(translatedPoint);
-
-            //fragments.emplace_back(Fragment{screenPoint, colour});
-
-            // Calculate index of where each point of the sphere should be inserted
-            int index = iteration * 3600 + (phi / (PI / 30.0f)) * 60 + (theta / (PI / 30.0f));
-            fragments[index] = Fragment{screenPoint, colour};
-
-            //#pragma omp atomic
-            prevHead++;
-            
-            // Set pixel of sphere points
-            //frameBuffer.setPixel(screenPoint, colour);
+    int radius = 5; // Radius of point in pixels
+    // Loop over a square of side lengths 2 * radius around the point
+    for (int x = screenPoint.x - radius; x < screenPoint.x + radius; x++) {
+        for (int y = screenPoint.y - radius; y < screenPoint.y + radius; y++) {
+            int nX = x - screenPoint.x; // x distance from point
+            int nY = y - screenPoint.y; // y distance from point
+            if ((nX * nX + nY * nY) < radius * radius) { // Check distance from point center to get points in a circle
+                fragments.emplace_back(Fragment{Point3(x, y, screenPoint.z), colour});
+            }
         }
     }
 }

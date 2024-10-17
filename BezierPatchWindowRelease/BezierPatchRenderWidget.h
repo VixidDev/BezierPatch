@@ -30,6 +30,8 @@
 #include "RenderParameters.h"
 #include "RGBAImage.h"
 
+// Struct to hold the transformed point and colour of each 'fragment' (calculated vertex)
+// so we can sort at the end of the frame and draw each fragment in order from back to front
 struct Fragment {
 	Point3 point;
 	RGBAValue colour;
@@ -50,7 +52,7 @@ class BezierPatchRenderWidget : public QOpenGLWidget
     // ... that we will set individual pixels to
 	RGBAImage frameBuffer;
 
-	int head, prevHead;
+	int head;
 	std::vector<Fragment> fragments;
 
 	// Projection matrix
@@ -59,8 +61,22 @@ class BezierPatchRenderWidget : public QOpenGLWidget
 	Matrix4 viewMatrix;
 	// Model matrix
 	Matrix4 modelMatrix;
-
+	// Model-view-projection matrix
 	Matrix4 mvpMatrix;
+
+	// Functor to compare two fragments and sort them first by x and y position and then by depth (z)
+    // So when we draw each fragment we are drawing them from back to front (Painter's algorithm)
+    struct {
+        bool operator()(Fragment left, Fragment right) const {
+            if ((int)left.point.y > (int)right.point.y) return true;
+            if ((int)left.point.y < (int)right.point.y) return false;
+            if ((int)left.point.x < (int)right.point.x) return true;
+            if ((int)left.point.x > (int)right.point.x) return false;
+            if (left.point.z > right.point.z) return true;
+            if (left.point.z < right.point.z) return false;
+            return false;
+        }
+    } lessFunctor;
 
 	public:
 	// constructor
@@ -79,8 +95,8 @@ class BezierPatchRenderWidget : public QOpenGLWidget
 
 	Point3 transformPoint(Homogeneous4 point);
 	Homogeneous4 bezier(float parameter, Homogeneous4 controlPoint1, Homogeneous4 controlPoint2, Homogeneous4 controlPoint3, Homogeneous4 controlPoint4);
-	void drawLine(Point3 start, Point3 end, RGBAValue colour, int iteration, int iterationAmount, int line);
-	void drawPoint(Point3 point, RGBAValue colour, int i);
+	void drawLine(Point3 start, Point3 end, RGBAValue colour);
+	void drawPoint(Point3 point, RGBAValue colour);
 			
 	protected:
 	// called when OpenGL context is set up
