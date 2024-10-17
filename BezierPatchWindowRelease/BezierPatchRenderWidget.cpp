@@ -353,7 +353,7 @@ void BezierPatchRenderWidget::paintGL()
     auto sortStart = std::chrono::steady_clock::now();
 
     if (!fragments.empty()) // Fragments will be empty if all toggles are turned off
-        std::sort(fragments.begin(), fragments.end(), lessFunctor); // Sort fragments based on lessFunctor sorting
+        std::sort(fragments.begin(), fragments.end(), lessFunctor); // Sort fragments based on lessFunctor sorting (Painter's algorithm)
 
     auto sortEnd = std::chrono::steady_clock::now();
     auto sortTimeTaken = std::chrono::duration_cast<std::chrono::microseconds>(sortEnd - sortStart);
@@ -427,9 +427,6 @@ Homogeneous4 BezierPatchRenderWidget::bezier(float parameter, Homogeneous4 contr
 }
 
 // Function to draw a line given a start and end point.
-// iteration, iterationAmount and lineNum parameters used to help calculate where to insert each fragment calculated into the fragment vector,
-// these are needed in a parallel context as we need to write to a unique memory location for every fragment so no two or more threads
-// ever write to the same memory location and cause a write collision
 void BezierPatchRenderWidget::drawLine(Point3 start, Point3 end, RGBAValue colour) {
     // Find difference between end and start point of line
     Vector3 difference = end - start;
@@ -445,6 +442,7 @@ void BezierPatchRenderWidget::drawLine(Point3 start, Point3 end, RGBAValue colou
         // Transform the point to screen space
         Point3 screenPoint = transformPoint(pointOnLine);
 
+        // Put the screenPoint and colour in fragments to be sorted later
         fragments.emplace_back(Fragment{screenPoint, colour});
     }
 }
@@ -460,7 +458,10 @@ void BezierPatchRenderWidget::drawPoint(Point3 point, RGBAValue colour) {
         for (int y = screenPoint.y - radius; y < screenPoint.y + radius; y++) {
             int nX = x - screenPoint.x; // x distance from point
             int nY = y - screenPoint.y; // y distance from point
-            if ((nX * nX + nY * nY) < radius * radius) { // Check distance from point center to get points in a circle
+            // Check distance from point center to get points in a circle
+            // use square values to avoid doing sqrt
+            if ((nX * nX + nY * nY) < radius * radius) {
+                // Put new calculated point in fragments (whilst preserving the z value)
                 fragments.emplace_back(Fragment{Point3(x, y, screenPoint.z), colour});
             }
         }
