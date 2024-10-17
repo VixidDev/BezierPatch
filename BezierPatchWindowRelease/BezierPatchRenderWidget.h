@@ -79,9 +79,7 @@ class BezierPatchRenderWidget : public QOpenGLWidget
 
 	Point3 transformPoint(Homogeneous4 point);
 	Homogeneous4 bezier(float parameter, Homogeneous4 controlPoint1, Homogeneous4 controlPoint2, Homogeneous4 controlPoint3, Homogeneous4 controlPoint4);
-	void drawLine(Point3 start, Point3 end, RGBAValue colour);
-	void drawSparseLine(Point3 start, Point3 end, RGBAValue colour, int i, int line);
-	void drawDenseLine(Point3 start, Point3 end, RGBAValue colour, int i, int line);
+	void drawLine(Point3 start, Point3 end, RGBAValue colour, int iteration, int iterationAmount, int line);
 	void drawPoint(Point3 point, RGBAValue colour, int i);
 			
 	protected:
