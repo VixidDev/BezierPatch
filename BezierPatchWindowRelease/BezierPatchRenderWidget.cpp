@@ -365,8 +365,10 @@ void BezierPatchRenderWidget::paintGL()
 
     // Draw every fragment, will be ordered so multiple pixels at same location will be drawn back to front
     if (!fragments.empty()) { // fragments will be empty when all toggles are off, so we need to check before iterating over
-        for (int i = 0; i < fragments.size() - 1; i++) {
-            frameBuffer.setPixel(fragments.at(i).point, fragments.at(i).colour);
+        for (int i = 1; i < fragments.size() - 1; i++) {
+            // When either the x or y changes from the previous fragment, the previous fragment will be the front most fragment for that pixel
+            if (fragments[i].point.x != fragments[i - 1].point.x || fragments[i].point.y != fragments[i - 1].point.y)
+                frameBuffer.setPixel(fragments[i - 1].point, fragments[i - 1].colour);
         }
     }
 
@@ -378,7 +380,8 @@ void BezierPatchRenderWidget::paintGL()
 
     auto end = std::chrono::steady_clock::now();
     auto timeTaken = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    std::cout << "Time taken: " << timeTaken.count() / 1000000.0f << " seconds." << std::endl << std::endl;
+    std::cout << "Time taken: " << timeTaken.count() / 1000000.0f << " seconds." << std::endl;
+    //std::cout << "FPS: " << 1 / (timeTaken.count() / 1000000.0f) << std::endl;
 
     // Put the custom framebufer on the screen to display the image
     glDrawPixels(frameBuffer.width, frameBuffer.height, GL_RGBA, GL_UNSIGNED_BYTE, frameBuffer.block);
