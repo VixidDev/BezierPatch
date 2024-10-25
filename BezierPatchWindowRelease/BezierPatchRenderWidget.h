@@ -67,7 +67,7 @@ class BezierPatchRenderWidget : public QOpenGLWidget
 	// Functor to compare two fragments and sort them first by x and y position and then by depth (z)
     // So when we draw each fragment we are drawing them from back to front (Painter's algorithm)
     struct {
-        bool operator()(Fragment left, Fragment right) const {
+        bool operator()(const Fragment& left, const Fragment& right) const {
             if ((int)left.point.y > (int)right.point.y) return true;
             if ((int)left.point.y < (int)right.point.y) return false;
             if ((int)left.point.x < (int)right.point.x) return true;

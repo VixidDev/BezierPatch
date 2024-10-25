@@ -182,9 +182,7 @@ void BezierPatchRenderWidget::paintGL()
     // Model-view-projection matrix
     mvpMatrix.SetIdentity();
     mvpMatrix = projectionMatrix * viewMatrix; // Combine projection and view matrix for transforming to clip space
-
-    auto startVertices = std::chrono::steady_clock::now();
-
+    
     if(renderParameters->verticesEnabled)
     {// UI control for showing vertices
 
@@ -220,12 +218,6 @@ void BezierPatchRenderWidget::paintGL()
         }
     }// UI control for showing vertices
 
-    auto endVertices = std::chrono::steady_clock::now();
-    auto timeTakenVertices = std::chrono::duration_cast<std::chrono::microseconds>(endVertices - startVertices);
-    //std::cout << "Vertices time taken: " << timeTakenVertices.count() / 1000000.0f << " seconds." << std::endl;
-
-    auto startPlanes = std::chrono::steady_clock::now();
-
     if(renderParameters->planesEnabled)
     {// UI control for showing axis-aligned planes
 
@@ -253,12 +245,6 @@ void BezierPatchRenderWidget::paintGL()
         // Refer to RenderWidget.cpp for the precise colours.
 
     }// UI control for showing axis-aligned planes
-
-    auto endPlanes = std::chrono::steady_clock::now();
-    auto timeTakenPlanes = std::chrono::duration_cast<std::chrono::microseconds>(endPlanes - startPlanes);
-    //std::cout << "Planes time taken: " << timeTakenPlanes.count() / 1000000.0f << " seconds." << std::endl;
-
-    auto startNet = std::chrono::steady_clock::now();
 
     if(renderParameters->netEnabled)
     {// UI control for showing the Bezier control net
@@ -302,12 +288,6 @@ void BezierPatchRenderWidget::paintGL()
 
     }// UI control for showing the Bezier control net
 
-    auto endNet = std::chrono::steady_clock::now();
-    auto timeTakenNet = std::chrono::duration_cast<std::chrono::microseconds>(endNet - startNet);
-    //std::cout << "Net time taken: " << timeTakenNet.count() / 1000000.0f << " seconds." << std::endl;
-
-    auto startBezier = std::chrono::steady_clock::now();
-
     if(renderParameters->bezierEnabled)
     {// UI control for showing the Bezier curve
         // Get the control points in a variable with shorter name for ease of reading
@@ -347,41 +327,26 @@ void BezierPatchRenderWidget::paintGL()
             } // t parameter loop
         } // s parameter loop
     }
-
-    auto endBezier = std::chrono::steady_clock::now();
-    auto timeTakenBezier = std::chrono::duration_cast<std::chrono::microseconds>(endBezier - startBezier);
-    //std::cout << "Bezier time taken: " << timeTakenBezier.count() / 1000000.0f << " seconds." << std::endl;
     
     auto sortStart = std::chrono::steady_clock::now();
 
     if (!fragments.empty()) // Fragments will be empty if all toggles are turned off
         std::sort(fragments.begin(), fragments.end(), lessFunctor); // Sort fragments based on lessFunctor sorting (Painter's algorithm)
 
-    auto sortEnd = std::chrono::steady_clock::now();
-    auto sortTimeTaken = std::chrono::duration_cast<std::chrono::microseconds>(sortEnd - sortStart);
-    //std::cout << "Sort time taken: " << sortTimeTaken.count() / 1000000.0f << " seconds." << std::endl;
-
-    auto startDraw = std::chrono::steady_clock::now();
-
     // Draw every fragment, will be ordered so multiple pixels at same location will be drawn back to front
     if (!fragments.empty()) { // fragments will be empty when all toggles are off, so we need to check before iterating over
-        for (int i = 1; i < fragments.size() - 1; i++) {
+        for (int i = 0; i < fragments.size() - 1; i++) {
             // When either the x or y changes from the previous fragment, the previous fragment will be the front most fragment for that pixel
             if (fragments[i].point.x != fragments[i - 1].point.x || fragments[i].point.y != fragments[i - 1].point.y)
                 frameBuffer.setPixel(fragments[i - 1].point, fragments[i - 1].colour);
         }
     }
 
-    auto endDraw = std::chrono::steady_clock::now();
-    auto timeTakenDraw = std::chrono::duration_cast<std::chrono::microseconds>(endDraw - startDraw);
-    //std::cout << "Draw time taken: " << timeTakenDraw.count() / 1000000.0f << " seconds." << std::endl;
-
     fragments.clear(); // Clear fragments so we don't get artifacts next frame
 
     auto end = std::chrono::steady_clock::now();
     auto timeTaken = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    std::cout << "Time taken: " << timeTaken.count() / 1000000.0f << " seconds." << std::endl;
-    //std::cout << "FPS: " << 1 / (timeTaken.count() / 1000000.0f) << std::endl;
+    std::cout << "Time taken: " << timeTaken.count() / 1000000.0f << " seconds." << std::endl << std::endl;
 
     // Put the custom framebufer on the screen to display the image
     glDrawPixels(frameBuffer.width, frameBuffer.height, GL_RGBA, GL_UNSIGNED_BYTE, frameBuffer.block);
