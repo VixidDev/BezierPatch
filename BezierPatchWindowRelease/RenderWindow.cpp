@@ -1,15 +1,5 @@
 /////////////////////////////////////////////////////////////////
 //
-//  University of Leeds
-//  COMP 5812M Foundations of Modelling & Rendering
-//  User Interface for Coursework
-//
-//  October, 2024
-//
-//  -----------------------------
-//  Render Window
-//  -----------------------------
-//
 //  The render window class is really just a container
 //  for tracking the visual hierarchy.  While it is
 //  entirely possible to use Qt Creator, I try to avoid

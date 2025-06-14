@@ -1,15 +1,5 @@
 /////////////////////////////////////////////////////////////////
 //
-//  University of Leeds
-//  COMP 5812M Foundations of Modelling & Rendering
-//  User Interface for Coursework
-//
-//  October, 2024
-//
-//  -----------------------------
-//  Render Parameters
-//  -----------------------------
-//
 //  This is part of the "model" in the MVC (model-view-controlled) paradigm
 //  We separate out the render parameters from the object being rendered
 //

@@ -1,15 +1,5 @@
 //////////////////////////////////////////////////////////////////////
 //
-//  University of Leeds
-//  COMP 5812M Foundations of Modelling & Rendering
-//  User Interface for Coursework
-//
-//  October, 2024
-//
-//  -----------------------------
-//  Render Widget
-//  -----------------------------
-//
 //  Since the render code is in the Bezier patch control points class
 //  this widget primarily sets up the transformation matrices
 //
@@ -35,6 +25,7 @@
 // include the header file
 #include "RenderWidget.h"
 
+#include <windows.h>
 #include <GL/gl.h>
 #include <GL/glu.h>
 

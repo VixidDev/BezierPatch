@@ -1,14 +1,4 @@
 //////////////////////////////////////////////////////////////////////
-//
-//  University of Leeds
-//  COMP 5812M Foundations of Modelling & Rendering
-//  User Interface for Coursework
-//
-//  October, 2024
-//
-//  ------------------------
-//  RGBAImage.cpp
-//  ------------------------
 //  
 //  A minimal class for an image in single-byte RGBA format
 //  Optimized for simplicity, not speed or memory

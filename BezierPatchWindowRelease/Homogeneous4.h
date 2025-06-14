@@ -1,15 +1,5 @@
 //////////////////////////////////////////////////////////////////////
 //
-//  University of Leeds
-//  COMP 5812M Foundations of Modelling & Rendering
-//  User Interface for Coursework
-//
-//  October, 2024
-//
-//  ------------------------
-//  Homogeneous4.cpp
-//  ------------------------
-//
 //  A minimal class for a 3D point in homogeneous coordinates
 //
 ///////////////////////////////////////////////////

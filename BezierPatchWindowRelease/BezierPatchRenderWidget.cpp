@@ -1,11 +1,3 @@
-//////////////////////////////////////////////////////////////////////
-//
-//  University of Leeds
-//  COMP 5812M Foundations of Modelling & Rendering
-//  User Interface for Coursework
-////////////////////////////////////////////////////////////////////////
-
-
 #include <math.h>
 #include <thread>
 #include <random>
@@ -18,7 +10,7 @@
 #include "BezierPatchRenderWidget.h"
 
 #include <QElapsedTimer>
-#include <GL/glut.h>
+#include <windows.h>
 #include <GL/gl.h>
 
 #include <chrono>
@@ -86,17 +78,6 @@ void BezierPatchRenderWidget::resizeGL(int w, int h)
 void BezierPatchRenderWidget::paintGL()
 { // BezierPatchRenderWidget::paintGL()
 
-    // TODO:
-    // To match the OpenGL widget, refer to "RenderWidget.{h/cpp}.
-    // There you shall find the precise colours, positions, etc.
-    // No additional OpenGL calls should be added here for drawing.
-    // Make use of the renderParameters matrices for converting
-    //  points from local coordinates to screen space.
-    // The final screen space coordinates (row/column) should then be used
-    //  to set the 2D frameBuffer array with the final colour.
-    // (glDrawPixels then puts the frameBuffer on the screen
-    //   to display the final image at the end of paintGL)
-
     // Get start time of frame
     auto start = std::chrono::steady_clock::now();
 
@@ -114,9 +95,9 @@ void BezierPatchRenderWidget::paintGL()
     float h = (float) frameBuffer.height;
     float aspectRatio = w / h; // Calculate aspect ratio based on width and height
 
-    // Set near and far planes
-    float near = 0.01f;
-    float far = 200.0f;
+    // Set _near and _far planes
+    float _near = 0.01f;
+    float _far = 200.0f;
     float left, right, bottom, top;
 
     // Projection matrix
@@ -146,10 +127,10 @@ void BezierPatchRenderWidget::paintGL()
         // glOrtho projection matrix
         projectionMatrix[0][0] = 2.0f / (right - left);
         projectionMatrix[1][1] = 2.0f / (top - bottom);
-        projectionMatrix[2][2] = -2.0f / (far - near);
+        projectionMatrix[2][2] = -2.0f / (_far - _near);
         projectionMatrix[0][3] = -(right + left) / (right - left);
         projectionMatrix[1][3] = -(top + bottom) / (top - bottom);
-        projectionMatrix[2][3] = -(far * near) / (far - near);
+        projectionMatrix[2][3] = -(_far * _near) / (_far - _near);
     } else {
         // Set view matrix translation and rotation for perspective projection
         viewMatrix.SetTranslation(Vector3(renderParameters->xTranslate, renderParameters->yTranslate, -(9.0f - renderParameters->zTranslate)));
@@ -169,14 +150,14 @@ void BezierPatchRenderWidget::paintGL()
         }
 
         // glFrustum projection matrix
-        projectionMatrix[0][0] = (2.0f * near) / (right - left);
-        projectionMatrix[1][1] = (2.0f * near) / (top - bottom);
-        projectionMatrix[2][2] = -(far + near) / (far - near);
+        projectionMatrix[0][0] = (2.0f * _near) / (right - left);
+        projectionMatrix[1][1] = (2.0f * _near) / (top - bottom);
+        projectionMatrix[2][2] = -(_far + _near) / (_far - _near);
         projectionMatrix[3][3] = 0.0f;
         projectionMatrix[0][2] = (right + left) / (right / left);
         projectionMatrix[1][2] = (top + bottom) / (top - bottom);
         projectionMatrix[3][2] = -1.0f;
-        projectionMatrix[2][3] = -(2.0f * far * near) / (far - near);
+        projectionMatrix[2][3] = -(2.0f * _far * _near) / (_far - _near);
     }
 
     // Model-view-projection matrix
@@ -335,7 +316,7 @@ void BezierPatchRenderWidget::paintGL()
 
     // Draw every fragment, will be ordered so multiple pixels at same location will be drawn back to front
     if (!fragments.empty()) { // fragments will be empty when all toggles are off, so we need to check before iterating over
-        for (int i = 0; i < fragments.size() - 1; i++) {
+        for (int i = 1; i < fragments.size() - 1; i++) {
             // When either the x or y changes from the previous fragment, the previous fragment will be the front most fragment for that pixel
             if (fragments[i].point.x != fragments[i - 1].point.x || fragments[i].point.y != fragments[i - 1].point.y)
                 frameBuffer.setPixel(fragments[i - 1].point, fragments[i - 1].colour);

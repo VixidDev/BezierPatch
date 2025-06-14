@@ -1,15 +1,5 @@
 //////////////////////////////////////////////////////////////////////
 //
-//	University of Leeds
-//	COMP 5812M Foundations of Modelling & Rendering
-//	User Interface for Coursework
-//
-//	October, 2024
-//
-//  -----------------------------
-//  Bezier Patch Render Widget
-//  -----------------------------
-//
 //	Provides a widget that displays a fixed image
 //	Assumes that the image will be edited (somehow) when Render() is called
 //  

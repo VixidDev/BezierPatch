@@ -1,14 +1,4 @@
 //////////////////////////////////////////////////////////////////////
-//
-//  University of Leeds
-//  COMP 5812M Foundations of Modelling & Rendering
-//  User Interface for Coursework
-//
-//  October, 2024
-//
-//  ------------------------
-//  ArcBall.h
-//  ------------------------
 //  
 //  A logical arcball (UI is separate)
 //  

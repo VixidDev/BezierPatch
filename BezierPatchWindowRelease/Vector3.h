@@ -1,15 +1,5 @@
 //////////////////////////////////////////////////////////////////////
 //
-//  University of Leeds
-//  COMP 5812M Foundations of Modelling & Rendering
-//  User Interface for Coursework
-//
-//  October, 2024
-//
-//  ------------------------
-//  Vector3.h
-//  ------------------------
-//
 //  A minimal class for a vector in Cartesian space
 //  
 ///////////////////////////////////////////////////

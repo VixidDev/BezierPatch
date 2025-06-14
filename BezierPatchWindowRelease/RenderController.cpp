@@ -1,15 +1,5 @@
 /////////////////////////////////////////////////////////////////
 //
-//  University of Leeds
-//  COMP 5812M Foundations of Modelling & Rendering
-//  User Interface for Coursework
-//
-//  October, 2024
-//
-//  -----------------------------
-//  Render Controller
-//  -----------------------------
-//
 //  We're using the Model-View-Controller pattern
 //  so most of the control logic goes here
 //  which means we need a slot for substantially

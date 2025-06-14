@@ -1,14 +1,4 @@
 //////////////////////////////////////////////////////////////////////
-//
-//  University of Leeds
-//  COMP 5812M Foundations of Modelling & Rendering
-//  User Interface for Coursework
-//
-//  October, 2024
-//
-//  ------------------------
-//  Matrix4.h
-//  ------------------------
 //  
 //  A minimal class for a homogeneous 4x4 matrix
 //  

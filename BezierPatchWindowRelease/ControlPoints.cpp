@@ -1,14 +1,5 @@
 ///////////////////////////////////////////////////
 //
-//  Hamish Carr
-//  October, 2024
-//
-//  ------------------------
-//  ControlPoints.cpp
-//  ------------------------
-//  
-//  Base code for rendering assignments.
-//
 //  Minimalist code for reading in space-separated
 //  point coordinates
 //  

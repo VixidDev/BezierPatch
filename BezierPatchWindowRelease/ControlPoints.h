@@ -1,14 +1,5 @@
 ///////////////////////////////////////////////////
 //
-//  Hamish Carr
-//  October, 2024
-//
-//  ------------------------
-//  ControlPoints.h
-//  ------------------------
-//  
-//  Base code for rendering assignments.
-//
 //  Minimalist code for reading in space-separated
 //  point coordinates
 //  
@@ -24,6 +15,7 @@
 #ifdef __APPLE__
 #include <OpenGL/gl.h>
 #else
+#include <windows.h>
 #include <GL/gl.h>
 #endif
 
