@@ -6,7 +6,7 @@ All rendering is done from scratch including the projection matrices, lines and 
 
 Since this manual method is very computationally heavy and done soley on the CPU, OpenMP is utilised along with compiler flags such as `-O3` and `-D_GLIBCXX_PARALLEL` to speed up standard library methods such as `std::sort` and general compiler optimisations.
 
-https://github.com/user-attachments/assets/08025cc3-0aaf-4cf6-9ed1-e7eebb197b20
+https://github.com/user-attachments/assets/ca6616ad-861d-4ae8-975a-f356c05ebf5d
 
 ## Usage
 
